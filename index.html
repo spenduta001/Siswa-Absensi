@@ -39,12 +39,12 @@
       }
     }
   </script>
-
-  <!-- Libraries CDN: Lucide Icons, Chart.js, Html5-QRCode, QRCodeJS, SheetJS -->
+  <!-- Libraries CDN: Lucide Icons, Chart.js, Html5-QRCode, QRCodeJS, JsBarcode, SheetJS -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 
   <style>
@@ -181,7 +181,7 @@
           <div class="text-xs font-bold text-gold-500 uppercase mb-2 flex items-center gap-1.5">
             <i data-lucide="key-round" class="w-4 h-4"></i> Akun Akses Sistem (Klik untuk isi cepat):
           </div>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div id="quick-login-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <button type="button" onclick="fillLogin('admin','admin123')" class="bg-navy-800 hover:bg-royal-600 text-left p-2 rounded-lg border border-navy-700 transition">
               <div class="font-bold text-white">Admin</div>
               <div class="text-slate-300 text-[11px]">admin / admin123</div>
@@ -190,13 +190,13 @@
               <div class="font-bold text-white">Kepsek</div>
               <div class="text-slate-300 text-[11px]">kepsek / kepsek123</div>
             </button>
-            <button type="button" onclick="fillLogin('guru1','guru123')" class="bg-navy-800 hover:bg-royal-600 text-left p-2 rounded-lg border border-navy-700 transition">
+            <button type="button" onclick="fillLogin('guru7a','guru123')" class="bg-navy-800 hover:bg-royal-600 text-left p-2 rounded-lg border border-navy-700 transition">
               <div class="font-bold text-white">Guru</div>
-              <div class="text-slate-300 text-[11px]">guru1 / guru123</div>
+              <div class="text-slate-300 text-[11px]">guru7a / guru123</div>
             </button>
-            <button type="button" onclick="fillLogin('piket1','piket123')" class="bg-navy-800 hover:bg-royal-600 text-left p-2 rounded-lg border border-navy-700 transition">
+            <button type="button" onclick="fillLogin('piket','piket123')" class="bg-navy-800 hover:bg-royal-600 text-left p-2 rounded-lg border border-navy-700 transition">
               <div class="font-bold text-white">Piket</div>
-              <div class="text-slate-300 text-[11px]">piket1 / piket123</div>
+              <div class="text-slate-300 text-[11px]">piket / piket123</div>
             </button>
           </div>
         </div>
@@ -237,10 +237,10 @@
         <div class="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <span class="flex items-center gap-1.5 font-semibold">
             <span id="auth-sync-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            <span id="auth-sync-label">Google Sheets Siap</span>
+            <span id="auth-sync-label">Tersinkronisasi Online</span>
           </span>
-          <button type="button" onclick="openAppsScriptModal()" class="text-royal-600 hover:underline font-bold">
-            Kode Apps Script
+          <button type="button" onclick="openAppsScriptModal()" class="text-royal-600 hover:underline font-bold flex items-center gap-1">
+            <i data-lucide="code" class="w-3.5 h-3.5"></i> Panduan & Salin Kode Server (Code.gs)
           </button>
         </div>
       </div>
@@ -366,7 +366,8 @@
           <button onclick="syncWithGoogleSheets('both')" id="btn-header-sync" title="Sinkronkan Data dengan Google Sheets"
             class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 border border-slate-300 text-xs font-bold text-navy-900 transition">
             <span id="sync-status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            <span class="hidden md:inline" id="sync-status-text">Sheets Terhubung</span>
+            <span class="hidden md:inline" id="sync-status-text">Tersinkronisasi Online</span>
+            <span id="offline-queue-badge" class="hidden bg-amber-600 text-white text-[10px] px-1.5 py-0.2 rounded-full">0</span>
             <i data-lucide="refresh-cw" id="sync-icon" class="w-3.5 h-3.5 text-royal-600"></i>
           </button>
 
@@ -567,13 +568,17 @@
 
                 <!-- Camera Viewport -->
                 <div class="bg-slate-900 rounded-2xl p-3 text-white">
-                  <div class="flex items-center justify-between mb-2 px-1">
+                  <div class="flex flex-wrap items-center justify-between gap-2 mb-2 px-1">
                     <span class="text-xs font-bold text-gold-500 flex items-center gap-1.5">
-                      <i data-lucide="camera" class="w-4 h-4"></i> Kamera Pemindai QR Code
+                      <i data-lucide="camera" class="w-4 h-4"></i> Kamera QR/Barcode
                     </span>
-                    <div class="flex gap-2">
+                    <div class="flex items-center gap-1.5">
+                      <select id="camera-facing-select" onchange="restartQrCameraIfActive()" class="bg-slate-800 text-white border border-slate-700 rounded-lg text-[11px] font-bold px-2 py-1">
+                        <option value="environment">Kamera Belakang</option>
+                        <option value="user">Kamera Depan</option>
+                      </select>
                       <button type="button" id="btn-start-cam" onclick="startQrCamera()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1 rounded-lg">
-                        Aktifkan Kamera
+                        Aktifkan
                       </button>
                       <button type="button" id="btn-stop-cam" onclick="stopQrCamera()" class="hidden bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1 rounded-lg">
                         Matikan
@@ -581,7 +586,7 @@
                     </div>
                   </div>
                   <div id="qr-reader" class="min-h-[260px] flex items-center justify-center text-slate-400 text-xs">
-                    Klik "Aktifkan Kamera" untuk memindai QR Code kartu siswa
+                    Klik "Aktifkan" untuk memindai QR Code / Barcode kartu siswa
                   </div>
                 </div>
 
@@ -933,11 +938,11 @@
             <div class="lg:col-span-7 bg-white rounded-xl p-5 shadow-sm border-t-4 border-emerald-600 space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 class="text-base font-extrabold text-navy-900">Integrasi Google Sheets (Apps Script Two-Way Sync)</h3>
-                  <p class="text-xs text-slate-500">Sinkronisasi real-time data siswa, kelas, absensi, dan log WA ke Spreadsheet</p>
+                  <h3 class="text-base font-extrabold text-navy-900">Integrasi Google Sheets (Dual-Mode Apps Script Sync)</h3>
+                  <p class="text-xs text-slate-500">Otomatis mendeteksi mode internal Apps Script (google.script.run) maupun eksternal Web App URL</p>
                 </div>
                 <button onclick="openAppsScriptModal()" class="bg-navy-900 hover:bg-royal-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5">
-                  <i data-lucide="code" class="w-3.5 h-3.5"></i> Salin Kode Code.gs
+                  <i data-lucide="code" class="w-3.5 h-3.5"></i> Panduan & Salin Kode Server (Code.gs)
                 </button>
               </div>
 
@@ -1014,6 +1019,36 @@
               <button onclick="saveSchoolSettings()" class="w-full bg-navy-900 hover:bg-royal-600 text-white font-bold py-2.5 rounded-xl text-xs shadow">
                 Simpan Jam Sekolah
               </button>
+            </div>
+          </div>
+
+          <!-- Manajemen Akun Login Petugas & Manajemen -->
+          <div class="bg-white rounded-xl p-5 shadow-sm border-t-4 border-gold-600 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 class="text-base font-extrabold text-navy-900">Manajemen Akun Login Petugas & Manajemen</h3>
+                <p class="text-xs text-slate-500">Kelola akun akses Admin, Kepala Sekolah, Guru, dan Petugas Piket (tersinkronisasi ke tab <code class="font-mono text-navy-900">Data_Pengguna</code>)</p>
+              </div>
+              <button onclick="openUserModal()" class="bg-royal-600 hover:bg-royal-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow">
+                <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah Akun Petugas
+              </button>
+            </div>
+
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-navy-900 text-white text-[11px] font-bold uppercase">
+                    <th class="py-3 px-4">Nama Lengkap & Gelar</th>
+                    <th class="py-3 px-4">Username / NIP</th>
+                    <th class="py-3 px-4">Kata Sandi</th>
+                    <th class="py-3 px-4">Jabatan / Hak Akses</th>
+                    <th class="py-3 px-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="users-tbody" class="divide-y divide-slate-200 text-xs">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -1179,103 +1214,177 @@
     <div class="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border-t-4 border-emerald-600 max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
         <div>
-          <h3 class="text-base font-extrabold text-navy-900">Kode Backend Google Apps Script (Code.gs)</h3>
-          <p class="text-xs text-slate-500">Salin & tempel ke Extensions &rarr; Apps Script pada Google Spreadsheet Anda</p>
+          <h3 class="text-base font-extrabold text-navy-900">Panduan & Kode Server Google Apps Script (Code.gs)</h3>
+          <p class="text-xs text-slate-500">Salin ke <strong>Extensions &rarr; Apps Script</strong> di Google Sheets Anda lalu Deploy sebagai Web App (Who has access: Anyone)</p>
         </div>
         <button onclick="closeModal('modal-apps-script')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
       <div class="bg-slate-900 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-y-auto flex-1">
 <pre id="apps-script-code-text">// ============================================================================
 // BACKEND GOOGLE APPS SCRIPT - ABSENSI DIGITAL UPTD SMPN 2 KETAPANG
-// Otomatis membuat sheet: Data_Siswa, Data_Kelas, Log_Absensi, Pengajuan_Izin, Log_WA
+// 7 Tab Otomatis: Data_Pengguna, Data_Siswa, Data_Kelas_Guru, Absensi_Masuk,
+// Absensi_Pulang, Pengaturan_Sistem, Log_Aktivitas
 // ============================================================================
+
+const SHEET_SCHEMAS = {
+  'Data_Pengguna': ['username', 'password', 'name', 'role', 'roleLabel'],
+  'Data_Siswa': ['id', 'nis', 'nisn', 'nama', 'jk', 'kelas', 'ortu', 'wa', 'alamat'],
+  'Data_Kelas_Guru': ['name', 'level', 'wali'],
+  'Absensi_Masuk': ['id', 'date', 'nisn', 'nama', 'kelas', 'jam_masuk', 'status', 'wa_status'],
+  'Absensi_Pulang': ['id', 'date', 'nisn', 'nama', 'kelas', 'jam_pulang', 'wa_status'],
+  'Pengaturan_Sistem': ['key', 'value'],
+  'Log_Aktivitas': ['waktu', 'aksi', 'detail', 'status']
+};
 
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   initSheets(ss);
 
-  const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'pull';
-  if (action === 'pull') {
-    return jsonResponse({
-      status: 'success',
-      students: sheetToObjects(ss.getSheetByName('Data_Siswa')),
-      classes: sheetToObjects(ss.getSheetByName('Data_Kelas')),
-      attendance: sheetToObjects(ss.getSheetByName('Log_Absensi')),
-      leaves: sheetToObjects(ss.getSheetByName('Pengajuan_Izin'))
-    });
+  // Jika dipanggil dengan parameter ?action=pull, kembalikan JSON database
+  if (e && e.parameter && e.parameter.action === 'pull') {
+    return jsonResponse(pullAllData());
   }
-  return jsonResponse({ status: 'ok', message: 'API Absensi UPTD SMPN 2 Ketapang Aktif' });
+
+  // Jika dibuka langsung di browser sebagai Web App, tampilkan file HTML 'Index'
+  try {
+    return HtmlService.createHtmlOutputFromFile('Index')
+      .setTitle('SISTEM INFORMASI ABSENSI DIGITAL SISWA - UPTD SMPN 2 KETAPANG')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  } catch (err) {
+    return jsonResponse({ status: 'ok', message: 'API Backend Aktif. Buat file HTML bernama Index untuk antarmuka langsung.' });
+  }
 }
 
 function doPost(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  initSheets(ss);
-
   try {
     const payload = JSON.parse(e.postData.contents);
-    const action = payload.action;
-
-    if (action === 'record_attendance') {
-      const sheet = ss.getSheetByName('Log_Absensi');
-      const d = payload.data;
-      upsertRow(sheet, 'id', [d.id, d.date, d.nisn, d.nama, d.kelas, d.jam_masuk || '', d.jam_pulang || '', d.status, d.wa_status || '']);
-      
-      // Kirim WhatsApp Otomatis jika konfigurasi WA dikirim dari Web App
-      if (payload.wa && payload.wa.endpoint && payload.wa.token && payload.wa.phone) {
-        sendWhatsAppGateway(payload.wa, ss);
-      }
-      return jsonResponse({ status: 'success', message: 'Absensi tersimpan ke Google Sheets' });
-    }
-
-    if (action === 'sync_all') {
-      if (payload.students) overwriteSheet(ss.getSheetByName('Data_Siswa'), ['id','nis','nisn','nama','jk','kelas','ortu','wa','alamat'], payload.students);
-      if (payload.classes) overwriteSheet(ss.getSheetByName('Data_Kelas'), ['name','level','wali'], payload.classes);
-      if (payload.attendance) overwriteSheet(ss.getSheetByName('Log_Absensi'), ['id','date','nisn','nama','kelas','jam_masuk','jam_pulang','status','wa_status'], payload.attendance);
-      if (payload.leaves) overwriteSheet(ss.getSheetByName('Pengajuan_Izin'), ['id','studentId','nisn','nama','kelas','date','type','reason','status'], payload.leaves);
-      return jsonResponse({ status: 'success', message: 'Sinkronisasi penuh berhasil' });
-    }
-
-    if (action === 'send_wa') {
-      const res = sendWhatsAppGateway(payload.wa, ss);
-      return jsonResponse({ status: res ? 'success' : 'error' });
-    }
-
-    return jsonResponse({ status: 'unknown_action' });
+    return jsonResponse(processSyncPayload(payload));
   } catch (err) {
     return jsonResponse({ status: 'error', message: err.toString() });
   }
 }
 
+// Dipanggil langsung oleh google.script.run dari browser
+function serverSyncAction(payload) {
+  return processSyncPayload(payload);
+}
+
+function pullAllData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  initSheets(ss);
+
+  const masukList = sheetToObjects(ss.getSheetByName('Absensi_Masuk'));
+  const pulangList = sheetToObjects(ss.getSheetByName('Absensi_Pulang'));
+  const pulangMap = {};
+  pulangList.forEach(p => { pulangMap[p.date + '_' + p.nisn] = p.jam_pulang; });
+
+  const mergedAttendance = masukList.map(m => ({
+    id: m.id,
+    date: m.date,
+    nisn: m.nisn,
+    nama: m.nama,
+    kelas: m.kelas,
+    jam_masuk: m.jam_masuk,
+    jam_pulang: pulangMap[m.date + '_' + m.nisn] || '',
+    status: m.status,
+    wa_status: m.wa_status
+  }));
+
+  return {
+    status: 'success',
+    users: sheetToObjects(ss.getSheetByName('Data_Pengguna')),
+    students: sheetToObjects(ss.getSheetByName('Data_Siswa')),
+    classes: sheetToObjects(ss.getSheetByName('Data_Kelas_Guru')),
+    attendance: mergedAttendance
+  };
+}
+
+function processSyncPayload(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  initSheets(ss);
+  const action = payload.action;
+
+  if (action === 'record_attendance') {
+    const d = payload.data;
+    if (d.jam_masuk && d.jam_masuk !== '-') {
+      upsertRow(ss.getSheetByName('Absensi_Masuk'), 'id', [
+        d.id, d.date, d.nisn, d.nama, d.kelas, d.jam_masuk, d.status, d.wa_status || 'Terkirim'
+      ]);
+    }
+    if (d.jam_pulang && d.jam_pulang !== '-') {
+      upsertRow(ss.getSheetByName('Absensi_Pulang'), 'id', [
+        'PLG-' + d.date + '-' + d.nisn, d.date, d.nisn, d.nama, d.kelas, d.jam_pulang, d.wa_status || 'Terkirim'
+      ]);
+    }
+    logActivity(ss, 'SCAN_' + (d.jam_pulang ? 'PULANG' : 'MASUK'), d.nama + ' (' + d.kelas + ') - ' + d.status, 'OK');
+
+    if (payload.wa && payload.wa.endpoint && payload.wa.token && payload.wa.phone) {
+      sendWhatsAppGateway(payload.wa, ss);
+    }
+    return { status: 'success', message: 'Absensi tersimpan ke Google Sheets' };
+  }
+
+  if (action === 'sync_all') {
+    if (payload.users) overwriteSheet(ss.getSheetByName('Data_Pengguna'), SHEET_SCHEMAS['Data_Pengguna'], payload.users);
+    if (payload.students) overwriteSheet(ss.getSheetByName('Data_Siswa'), SHEET_SCHEMAS['Data_Siswa'], payload.students);
+    if (payload.classes) overwriteSheet(ss.getSheetByName('Data_Kelas_Guru'), SHEET_SCHEMAS['Data_Kelas_Guru'], payload.classes);
+    if (payload.attendance) {
+      const masukRows = payload.attendance.map(a => ({
+        id: a.id, date: a.date, nisn: a.nisn, nama: a.nama, kelas: a.kelas,
+        jam_masuk: a.jam_masuk || '-', status: a.status, wa_status: a.wa_status || '-'
+      }));
+      const pulangRows = payload.attendance.filter(a => a.jam_pulang && a.jam_pulang !== '-').map(a => ({
+        id: 'PLG-' + a.date + '-' + a.nisn, date: a.date, nisn: a.nisn, nama: a.nama,
+        kelas: a.kelas, jam_pulang: a.jam_pulang, wa_status: a.wa_status || 'Terkirim'
+      }));
+      overwriteSheet(ss.getSheetByName('Absensi_Masuk'), SHEET_SCHEMAS['Absensi_Masuk'], masukRows);
+      overwriteSheet(ss.getSheetByName('Absensi_Pulang'), SHEET_SCHEMAS['Absensi_Pulang'], pulangRows);
+    }
+    if (payload.settings) {
+      const setRows = Object.keys(payload.settings).map(k => ({ key: k, value: String(payload.settings[k]) }));
+      overwriteSheet(ss.getSheetByName('Pengaturan_Sistem'), SHEET_SCHEMAS['Pengaturan_Sistem'], setRows);
+    }
+    logActivity(ss, 'SYNC_ALL', 'Sinkronisasi penuh seluruh tabel', 'OK');
+    return { status: 'success', message: 'Sinkronisasi 7 tab berhasil' };
+  }
+
+  if (action === 'send_wa') {
+    const ok = sendWhatsAppGateway(payload.wa, ss);
+    return { status: ok ? 'success' : 'error' };
+  }
+
+  return { status: 'unknown_action' };
+}
+
 function sendWhatsAppGateway(wa, ss) {
   try {
-    const options = {
+    const response = UrlFetchApp.fetch(wa.endpoint, {
       method: 'post',
       headers: { 'Authorization': wa.token },
       payload: { target: wa.phone, message: wa.message },
       muteHttpExceptions: true
-    };
-    const response = UrlFetchApp.fetch(wa.endpoint, options);
-    const logSheet = ss.getSheetByName('Log_WA');
-    logSheet.appendRow([new Date().toLocaleString('id-ID'), wa.phone, wa.studentName || '-', wa.message, response.getResponseCode()]);
+    });
+    logActivity(ss, 'WA_NOTIF', (wa.studentName || wa.phone) + ' -> ' + wa.phone, 'HTTP ' + response.getResponseCode());
     return true;
   } catch (e) {
+    logActivity(ss, 'WA_ERROR', wa.phone, e.toString());
     return false;
   }
 }
 
+function logActivity(ss, aksi, detail, status) {
+  const sh = ss.getSheetByName('Log_Aktivitas');
+  if (sh) sh.appendRow([new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }), aksi, detail, status]);
+}
+
 function initSheets(ss) {
-  const schemas = {
-    'Data_Siswa': ['id','nis','nisn','nama','jk','kelas','ortu','wa','alamat'],
-    'Data_Kelas': ['name','level','wali'],
-    'Log_Absensi': ['id','date','nisn','nama','kelas','jam_masuk','jam_pulang','status','wa_status'],
-    'Pengajuan_Izin': ['id','studentId','nisn','nama','kelas','date','type','reason','status'],
-    'Log_WA': ['waktu','tujuan','siswa','pesan','response_code']
-  };
-  Object.keys(schemas).forEach(name => {
+  Object.keys(SHEET_SCHEMAS).forEach(name => {
     let sh = ss.getSheetByName(name);
     if (!sh) {
       sh = ss.insertSheet(name);
-      sh.appendRow(schemas[name]);
+      sh.appendRow(SHEET_SCHEMAS[name]);
+      sh.getRange(1, 1, 1, SHEET_SCHEMAS[name].length).setFontWeight('bold').setBackground('#0F294A').setFontColor('#FFFFFF');
     }
   });
 }
@@ -1285,7 +1394,7 @@ function sheetToObjects(sheet) {
   if (data.length < 2) return [];
   const headers = data[0];
   return data.slice(1).map(row => {
-    let obj = {};
+    const obj = {};
     headers.forEach((h, i) => obj[h] = String(row[i]));
     return obj;
   });
@@ -1324,25 +1433,287 @@ function jsonResponse(obj) {
     </div>
   </div>
 
+  <!-- 6. Modal Tambah / Edit Akun Login Petugas & Manajemen -->
+  <div id="modal-user" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border-t-4 border-gold-600">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+        <h3 id="modal-user-title" class="text-base font-extrabold text-navy-900">Tambah Akun Login Petugas</h3>
+        <button onclick="closeModal('modal-user')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form onsubmit="saveUserForm(event)" class="space-y-3">
+        <input type="hidden" id="usr-old-username">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap & Gelar</label>
+          <input type="text" id="usr-name" required placeholder="Contoh: Drs. Ahmad Fauzi, M.Pd."
+            class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Username / NIP (Unik)</label>
+          <input type="text" id="usr-username" required placeholder="Contoh: piket2 atau 198501012010011001"
+            class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Kata Sandi (Password)</label>
+          <input type="text" id="usr-password" required placeholder="Masukkan kata sandi login..."
+            class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Jabatan / Hak Akses</label>
+          <select id="usr-role" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+            <option value="admin">Admin Sekolah (Akses Penuh)</option>
+            <option value="kepsek">Kepala Sekolah (Dashboard & Laporan)</option>
+            <option value="guru">Guru / Wali Kelas (Siswa, Kelas, Izin, Laporan)</option>
+            <option value="piket">Petugas Piket (Scan QR/Barcode, Izin, WhatsApp)</option>
+          </select>
+        </div>
+        <div class="pt-3 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modal-user')" class="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 font-bold text-xs">Batal</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-royal-600 hover:bg-royal-700 text-white font-bold text-xs shadow">Simpan Akun</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- HIDDEN PRINT AREA FOR PDF REPORTS & QR STUDENT CARDS -->
   <div id="print-area" class="hidden"></div>
 
   <!-- ===================================================================== -->
-  <!-- JAVASCRIPT APPLICATION LOGIC                                          -->
-  <!-- ===================================================================== -->
   <script>
-    // =========================================================================
-    // 1. STATE & STORAGE MANAGEMENT
-    // =========================================================================
-    const STORAGE_KEY = 'smpn2_ketapang_absensi_v1';
+    const STORAGE_KEY = 'smpn2_ketapang_absensi_v2';
+    const QUEUE_KEY = 'smpn2_ketapang_sync_queue_v2';
     const DEFAULT_GSHEET_URL = 'https://script.google.com/macros/s/AKfycbzsDxYC6unkKfW8aEwUDXZ_-ilQYhOEp0ED4uZ6FCJXWa_AKxVcfChV4zEgbZiUitzaGw/exec';
 
     const DEFAULT_USERS = [
-      { username: 'admin', password: '123', altPass: 'admin123', name: 'Administrator Sekolah', role: 'admin', roleLabel: 'Admin Sekolah' },
-      { username: 'kepsek', password: '123', altPass: 'kepsek123', name: 'Drs. H. Ahmad Fauzi, M.Pd.', role: 'kepsek', roleLabel: 'Kepala Sekolah' },
-      { username: 'guru1', password: '123', altPass: 'guru123', name: 'Siti Aminah, S.Pd.', role: 'guru', roleLabel: 'Guru / Wali Kelas' },
-      { username: 'piket1', password: '123', altPass: 'piket123', name: 'Budi Santoso, S.Pd.', role: 'piket', roleLabel: 'Petugas Piket' }
+      { username: 'admin', password: 'admin123', name: 'Administrator Sekolah', role: 'admin', roleLabel: 'Admin Sekolah' },
+      { username: 'kepsek', password: 'kepsek123', name: 'Drs. H. Ahmad Fauzi, M.Pd.', role: 'kepsek', roleLabel: 'Kepala Sekolah' },
+      { username: 'guru7a', password: 'guru123', name: 'Siti Aminah, S.Pd.', role: 'guru', roleLabel: 'Guru / Wali Kelas' },
+      { username: 'piket', password: 'piket123', name: 'Budi Santoso, S.Pd.', role: 'piket', roleLabel: 'Petugas Piket' }
     ];
+
+    const ROLE_LABELS = {
+      admin: 'Admin Sekolah',
+      kepsek: 'Kepala Sekolah',
+      guru: 'Guru / Wali Kelas',
+      piket: 'Petugas Piket'
+    };
+
+    function updateClockWIB() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).replace(/\./g, ':') + ' WIB';
+      const dateStr = now.toLocaleDateString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+
+      document.querySelectorAll('.clock-wib').forEach(el => { el.textContent = timeStr; });
+      document.querySelectorAll('.date-wib').forEach(el => { el.textContent = dateStr; });
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const styles = {
+        success: 'bg-emerald-600 border-emerald-800 text-white',
+        error: 'bg-red-600 border-red-800 text-white',
+        warning: 'bg-amber-600 border-amber-800 text-white',
+        info: 'bg-navy-900 border-royal-600 text-white'
+      };
+
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto rounded-xl border-l-4 px-4 py-3 shadow-xl text-xs font-bold flex items-center justify-between gap-3 transition-all duration-300 ${styles[type] || styles.info}`;
+      toast.innerHTML = `<span>${message}</span><button type="button" onclick="this.parentElement.remove()" class="text-white/80 hover:text-white font-extrabold">&times;</button>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    function playBeep(type = 'success') {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'success') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.22);
+        } else if (type === 'late') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(520, ctx.currentTime);
+          osc.frequency.setValueAtTime(440, ctx.currentTime + 0.15);
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.35);
+        } else {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(220, ctx.currentTime);
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.4);
+        }
+      } catch (e) {}
+    }
+
+    // =========================================================================
+    // 2. AUTENTIKASI, HAK AKSES (RBAC) & NAVIGASI HALAMAN
+    // =========================================================================
+    function fillLogin(username, password) {
+      document.getElementById('login-username').value = username;
+      document.getElementById('login-password').value = password;
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const uname = document.getElementById('login-username').value.trim().toLowerCase();
+      const pass = document.getElementById('login-password').value.trim();
+      const usersList = (Array.isArray(appState.users) && appState.users.length > 0) ? appState.users : DEFAULT_USERS;
+
+      const found = usersList.find(u =>
+        String(u.username || '').toLowerCase() === uname &&
+        (String(u.password || '') === pass || (u.altPass && String(u.altPass) === pass))
+      );
+
+      if (!found) {
+        playBeep('error');
+        showToast('Username atau kata sandi tidak sesuai!', 'error');
+        return;
+      }
+
+      activateUserSession(found, 'dashboard');
+      showToast(`Selamat datang, ${found.name}!`, 'success');
+    }
+
+    function enterKioskScanMode() {
+      const usersList = (Array.isArray(appState.users) && appState.users.length > 0) ? appState.users : DEFAULT_USERS;
+      const piketUser = usersList.find(u => u.role === 'piket') || usersList[0];
+      activateUserSession(piketUser, 'scan');
+      showToast('Mode Scan Kios Aktif. Siap memindai kartu siswa.', 'info');
+    }
+
+    function activateUserSession(user, initialPage = 'dashboard') {
+      currentUser = user;
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('app-shell').classList.remove('hidden');
+
+      document.getElementById('user-display-name').textContent = user.name;
+      document.getElementById('user-display-role').textContent = user.roleLabel;
+      document.getElementById('user-avatar').textContent = user.name.slice(0, 2).toUpperCase();
+
+      // Terapkan RBAC pada menu sidebar
+      document.querySelectorAll('#sidebar-nav .nav-item').forEach(btn => {
+        const allowedRoles = btn.getAttribute('data-role');
+        if (!allowedRoles || allowedRoles.split(',').includes(user.role)) {
+          btn.classList.remove('hidden');
+        } else {
+          btn.classList.add('hidden');
+        }
+      });
+
+      loadSettingsInputs();
+      updatePendingLeavesBadge();
+      navigateTo(initialPage);
+    }
+
+    async function handleLogout() {
+      await stopQrCamera();
+      currentUser = null;
+      document.getElementById('app-shell').classList.add('hidden');
+      document.getElementById('auth-screen').classList.remove('hidden');
+      document.getElementById('login-password').value = '';
+      showToast('Anda telah keluar dari sistem.', 'info');
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      if (!sidebar || !overlay) return;
+      sidebar.classList.toggle('-translate-x-full');
+      overlay.classList.toggle('hidden');
+    }
+
+    async function navigateTo(pageName) {
+      if (pageName !== 'scan' && isScanningCamera) {
+        await stopQrCamera();
+      }
+
+      document.querySelectorAll('.page-section').forEach(sec => sec.classList.add('hidden'));
+      const target = document.getElementById(`page-${pageName}`);
+      if (target) target.classList.remove('hidden');
+
+      const titles = {
+        dashboard: 'Dashboard & Monitoring',
+        scan: 'Scan QR / Barcode Siswa',
+        students: 'Data Siswa & Kartu QR',
+        classes: 'Manajemen Kelas',
+        leaves: 'Pengajuan Izin & Sakit',
+        reports: 'Rekapitulasi & Laporan',
+        whatsapp: 'WhatsApp & Log Pesan',
+        settings: 'Pengaturan & Google Sheets'
+      };
+      const titleEl = document.getElementById('page-title');
+      if (titleEl) titleEl.textContent = titles[pageName] || 'Dashboard';
+
+      document.querySelectorAll('#sidebar-nav .nav-item').forEach(btn => {
+        if (btn.getAttribute('data-nav') === pageName) {
+          btn.classList.add('bg-royal-600', 'text-white', 'shadow');
+          btn.classList.remove('text-slate-300', 'hover:bg-navy-800', 'hover:text-white');
+        } else {
+          btn.classList.remove('bg-royal-600', 'text-white', 'shadow');
+          btn.classList.add('text-slate-300', 'hover:bg-navy-800', 'hover:text-white');
+        }
+      });
+
+      // Tutup sidebar mobile otomatis setelah klik menu
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      if (sidebar && !sidebar.classList.contains('-translate-x-full') && window.innerWidth < 1024) {
+        sidebar.classList.add('-translate-x-full');
+        if (overlay) overlay.classList.add('hidden');
+      }
+
+      // Render data sesuai halaman aktif
+      if (pageName === 'dashboard') renderDashboard();
+      if (pageName === 'scan') {
+        populateAllDropdowns();
+        setTimeout(() => document.getElementById('usb-scanner-input')?.focus(), 100);
+      }
+      if (pageName === 'students') renderStudentsTable();
+      if (pageName === 'classes') renderClassesGrid();
+      if (pageName === 'leaves') renderLeavesTable();
+      if (pageName === 'reports') renderReportsPage();
+      if (pageName === 'whatsapp') renderWhatsAppPage();
+      if (pageName === 'settings') {
+        loadSettingsInputs();
+        renderUsersTable();
+      }
+
+      lucide.createIcons();
+    }
+
+    // Deteksi apakah berjalan di dalam Google Apps Script Web App
+    function isInsideAppsScript() {
+      return typeof window.google !== 'undefined' && window.google.script && window.google.script.run;
+    }
 
     function getTodayWIB() {
       const now = new Date();
@@ -1371,11 +1742,12 @@ function jsonResponse(obj) {
     function createInitialState() {
       const today = getTodayWIB();
       return {
+        users: JSON.parse(JSON.stringify(DEFAULT_USERS)),
         settings: {
           gsheetUrl: DEFAULT_GSHEET_URL,
           jamMasuk: '07:00',
           batasTelat: '07:15',
-          jamPulang: '14:00',
+          jamPulang: '13:30',
           tahunAjaran: '2026/2027',
           kepsekName: 'Drs. H. Ahmad Fauzi, M.Pd.',
           kepsekNip: '19720514 199802 1 003',
@@ -1438,7 +1810,11 @@ function jsonResponse(obj) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
           return initial;
         }
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
+          parsed.users = JSON.parse(JSON.stringify(DEFAULT_USERS));
+        }
+        return parsed;
       } catch (e) {
         return createInitialState();
       }
@@ -1453,286 +1829,197 @@ function jsonResponse(obj) {
     }
 
     // =========================================================================
-    // 2. AUDIO FEEDBACK (WEB AUDIO API - NO EXTERNAL SOUND FILES)
+    // 5. GOOGLE SHEETS DUAL-MODE SYNC & OFFLINE QUEUE
     // =========================================================================
-    function playBeep(type = 'success') {
+    function getSyncQueue() {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        if (type === 'success') {
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(880, ctx.currentTime);
-          osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.1);
-          gain.gain.setValueAtTime(0.2, ctx.currentTime);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.25);
-        } else if (type === 'late') {
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(520, ctx.currentTime);
-          osc.frequency.setValueAtTime(440, ctx.currentTime + 0.15);
-          gain.gain.setValueAtTime(0.25, ctx.currentTime);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.35);
-        } else {
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(220, ctx.currentTime);
-          gain.gain.setValueAtTime(0.25, ctx.currentTime);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.4);
-        }
-      } catch (e) {}
-    }
-
-    // =========================================================================
-    // 3. REAL-TIME CLOCK (WIB) & TOAST NOTIFICATIONS
-    // =========================================================================
-    function updateClockWIB() {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }).replace(/\./g, ':') + ' WIB';
-
-      const dateStr = now.toLocaleDateString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-
-      document.querySelectorAll('.clock-wib').forEach(el => el.textContent = timeStr);
-      document.querySelectorAll('.date-wib').forEach(el => el.textContent = dateStr);
-    }
-
-    function showToast(message, type = 'info') {
-      const container = document.getElementById('toast-container');
-      const colors = {
-        success: 'bg-emerald-600 text-white border-emerald-800',
-        error: 'bg-red-600 text-white border-red-800',
-        warning: 'bg-amber-600 text-white border-amber-800',
-        info: 'bg-navy-900 text-white border-royal-600'
-      };
-      const toast = document.createElement('div');
-      toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border-l-4 text-xs font-bold flex items-center justify-between gap-3 transition-all ${colors[type] || colors.info}`;
-      toast.innerHTML = `<span>${message}</span>`;
-      container.appendChild(toast);
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-      }, 3500);
-    }
-
-    // =========================================================================
-    // 4. AUTHENTICATION & ROLE-BASED ACCESS CONTROL (RBAC)
-    // =========================================================================
-    function fillLogin(u, p) {
-      document.getElementById('login-username').value = u;
-      document.getElementById('login-password').value = p;
-    }
-
-    function handleLogin(e) {
-      e.preventDefault();
-      const u = document.getElementById('login-username').value.trim().toLowerCase();
-      const p = document.getElementById('login-password').value.trim();
-
-      const found = DEFAULT_USERS.find(acc => acc.username === u && (acc.password === p || acc.altPass === p));
-      if (!found) {
-        playBeep('error');
-        showToast('Username atau kata sandi salah!', 'error');
-        return;
+        return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+      } catch (e) {
+        return [];
       }
-
-      currentUser = found;
-      enterAppShell();
-      showToast(`Selamat datang, ${found.name} (${found.roleLabel})`, 'success');
     }
 
-    function enterKioskScanMode() {
-      currentUser = { username: 'kios', name: 'Terminal Scan Gerbang', role: 'piket', roleLabel: 'Mode Kios Piket' };
-      enterAppShell();
-      navigateTo('scan');
-      showToast('Mode Kios Scan Aktif', 'info');
+    function saveSyncQueue(q) {
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+      updateSyncStatusUI(navigator.onLine ? 'online' : 'offline');
     }
 
-    function enterAppShell() {
-      document.getElementById('auth-screen').classList.add('hidden');
-      document.getElementById('app-shell').classList.remove('hidden');
-
-      document.getElementById('user-display-name').textContent = currentUser.name;
-      document.getElementById('user-display-role').textContent = currentUser.roleLabel;
-      document.getElementById('user-avatar').textContent = currentUser.name.slice(0, 2).toUpperCase();
-
-      // Apply RBAC visibility on sidebar items
-      document.querySelectorAll('#sidebar-nav .nav-item').forEach(btn => {
-        const allowed = btn.getAttribute('data-role');
-        if (!allowed || allowed.split(',').includes(currentUser.role)) {
-          btn.classList.remove('hidden');
-        } else {
-          btn.classList.add('hidden');
-        }
-      });
-
-      populateAllDropdowns();
-      loadSettingsInputs();
-      navigateTo(currentUser.role === 'piket' ? 'scan' : 'dashboard');
-      lucide.createIcons();
+    function enqueueSyncPayload(payload) {
+      const q = getSyncQueue();
+      q.push({ timestamp: Date.now(), payload });
+      saveSyncQueue(q);
     }
 
-    function handleLogout() {
-      stopQrCamera();
-      currentUser = null;
-      document.getElementById('app-shell').classList.add('hidden');
-      document.getElementById('auth-screen').classList.remove('hidden');
-    }
-
-    function toggleSidebar() {
-      const sb = document.getElementById('sidebar');
-      const ov = document.getElementById('sidebar-overlay');
-      sb.classList.toggle('-translate-x-full');
-      ov.classList.toggle('hidden');
-    }
-
-    function navigateTo(pageId) {
-      // Stop camera if leaving scan page
-      if (pageId !== 'scan' && isScanningCamera) {
-        stopQrCamera();
-      }
-
-      document.querySelectorAll('.page-section').forEach(sec => sec.classList.add('hidden'));
-      const target = document.getElementById(`page-${pageId}`);
-      if (target) target.classList.remove('hidden');
-
-      // Active Nav Styling
-      document.querySelectorAll('#sidebar-nav .nav-item').forEach(btn => {
-        if (btn.getAttribute('data-nav') === pageId) {
-          btn.classList.add('bg-royal-600', 'text-white', 'shadow');
-          btn.classList.remove('text-slate-300', 'hover:bg-navy-800');
-        } else {
-          btn.classList.remove('bg-royal-600', 'text-white', 'shadow');
-          btn.classList.add('text-slate-300', 'hover:bg-navy-800');
-        }
-      });
-
-      const titles = {
-        dashboard: 'Dashboard & Monitoring Real-Time',
-        scan: 'Scan QR Code / Barcode Siswa',
-        students: 'Data Master Siswa & Kartu QR',
-        classes: 'Manajemen Kelas',
-        leaves: 'Pengajuan Izin & Sakit Siswa',
-        reports: 'Rekapitulasi Absensi & Laporan',
-        whatsapp: 'WhatsApp Gateway & Log Pesan',
-        settings: 'Pengaturan Sistem & Google Sheets'
-      };
-      document.getElementById('page-title').textContent = titles[pageId] || 'Absensi Digital';
-
-      // Close mobile sidebar if open
-      document.getElementById('sidebar').classList.add('-translate-x-full');
-      document.getElementById('sidebar-overlay').classList.add('hidden');
-
-      // Render page-specific data
-      if (pageId === 'dashboard') renderDashboard();
-      if (pageId === 'scan') {
-        populateAllDropdowns();
-        setTimeout(() => document.getElementById('usb-scanner-input').focus(), 100);
-      }
-      if (pageId === 'students') renderStudentsTable();
-      if (pageId === 'classes') renderClassesGrid();
-      if (pageId === 'leaves') renderLeavesTable();
-      if (pageId === 'reports') renderReportsPage();
-      if (pageId === 'whatsapp') renderWhatsAppPage();
-      if (pageId === 'settings') loadSettingsInputs();
-
-      updatePendingLeavesBadge();
-      lucide.createIcons();
-    }
-
-    // =========================================================================
-    // 5. GOOGLE SHEETS TWO-WAY SYNCHRONIZATION (APPS SCRIPT)
-    // =========================================================================
-    async function syncWithGoogleSheets(mode = 'both', singleRecordPayload = null) {
-      const url = appState.settings.gsheetUrl;
+    function updateSyncStatusUI(state) {
       const dot = document.getElementById('sync-status-dot');
       const txt = document.getElementById('sync-status-text');
-      const icon = document.getElementById('sync-icon');
+      const authDot = document.getElementById('auth-sync-dot');
+      const authTxt = document.getElementById('auth-sync-label');
+      const badge = document.getElementById('offline-queue-badge');
+      const qLen = getSyncQueue().length;
 
-      if (!url || !url.startsWith('http')) {
-        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
-        if (txt) txt.textContent = 'Mode Lokal';
-        return;
+      if (badge) {
+        if (qLen > 0) {
+          badge.textContent = qLen;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
       }
 
-      if (icon) icon.classList.add('animate-spin');
-      if (txt) txt.textContent = 'Menyinkronkan...';
+      const modeLabel = isInsideAppsScript() ? 'Tersinkronisasi Online (GAS)' : 'Tersinkronisasi Online';
+      if (state === 'syncing') {
+        if (txt) txt.textContent = 'Menyinkronkan...';
+      } else if (state === 'offline' || !navigator.onLine) {
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
+        if (txt) txt.textContent = 'Mode Lokal (Antrean)';
+        if (authDot) authDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
+        if (authTxt) authTxt.textContent = 'Mode Lokal';
+      } else {
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+        if (txt) txt.textContent = modeLabel;
+        if (authDot) authDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+        if (authTxt) authTxt.textContent = modeLabel;
+      }
+    }
 
-      try {
-        // 1. Single Real-Time Record Push (Scan / WA)
-        if (singleRecordPayload) {
-          await fetch(url, {
-            method: 'POST',
-            mode: 'no-cors', // Apps Script Web App cross-origin safe
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(singleRecordPayload)
-          });
-          if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-          if (txt) txt.textContent = 'Tersinkron Sheets';
-          if (icon) icon.classList.remove('animate-spin');
+    async function flushOfflineQueue() {
+      if (!navigator.onLine) return;
+      const q = getSyncQueue();
+      if (q.length === 0) return;
+
+      const remaining = [];
+      for (const item of q) {
+        try {
+          await dispatchPayloadToBackend(item.payload);
+        } catch (e) {
+          remaining.push(item);
+        }
+      }
+      saveSyncQueue(remaining);
+    }
+
+    function dispatchPayloadToBackend(payload) {
+      return new Promise((resolve, reject) => {
+        // Mode 1: Internal Google Apps Script (google.script.run)
+        if (isInsideAppsScript()) {
+          window.google.script.run
+            .withSuccessHandler(res => resolve(res))
+            .withFailureHandler(err => reject(err))
+            .serverSyncAction(payload);
           return;
         }
 
+        // Mode 2: External Fetch ke Web App URL Apps Script
+        const url = appState.settings.gsheetUrl;
+        if (!url || !url.startsWith('http')) {
+          reject(new Error('URL Google Apps Script belum diatur'));
+          return;
+        }
+
+        fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        })
+          .then(() => resolve({ status: 'success' }))
+          .catch(err => reject(err));
+      });
+    }
+
+    async function syncWithGoogleSheets(mode = 'both', singleRecordPayload = null) {
+      const icon = document.getElementById('sync-icon');
+      if (icon) icon.classList.add('animate-spin');
+      updateSyncStatusUI('syncing');
+
+      try {
+        // 1. Real-Time Single Record Push (Scan / WA)
+        if (singleRecordPayload) {
+          if (!navigator.onLine) {
+            enqueueSyncPayload(singleRecordPayload);
+            updateSyncStatusUI('offline');
+            return;
+          }
+          try {
+            await dispatchPayloadToBackend(singleRecordPayload);
+            updateSyncStatusUI('online');
+          } catch (err) {
+            enqueueSyncPayload(singleRecordPayload);
+            updateSyncStatusUI('offline');
+          }
+          return;
+        }
+
+        // Flush antrean offline terlebih dahulu jika online
+        await flushOfflineQueue();
+
         // 2. Full Push to Google Sheets
         if (mode === 'push' || mode === 'both') {
-          await fetch(url, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'sync_all',
-              students: appState.students,
-              classes: appState.classes,
-              attendance: appState.attendance,
-              leaves: appState.leaves
-            })
+          await dispatchPayloadToBackend({
+            action: 'sync_all',
+            users: appState.users,
+            students: appState.students,
+            classes: appState.classes,
+            attendance: appState.attendance,
+            settings: appState.settings
           });
           if (mode === 'push') {
             showToast('Seluruh data berhasil dikirim ke Google Sheets!', 'success');
           }
         }
 
-        // 3. Pull Data from Google Sheets (GET)
+        // 3. Pull Data from Google Sheets
         if (mode === 'pull' || mode === 'both') {
-          const res = await fetch(`${url}?action=pull`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.status === 'success') {
-              if (Array.isArray(data.students) && data.students.length > 0) appState.students = data.students;
-              if (Array.isArray(data.classes) && data.classes.length > 0) appState.classes = data.classes;
-              if (Array.isArray(data.attendance) && data.attendance.length > 0) appState.attendance = data.attendance;
-              if (Array.isArray(data.leaves) && data.leaves.length > 0) appState.leaves = data.leaves;
-              saveState();
-              if (mode === 'pull') showToast('Data terbaru berhasil ditarik dari Google Sheets!', 'success');
+          let data = null;
+          if (isInsideAppsScript()) {
+            data = await new Promise((resolve, reject) => {
+              window.google.script.run
+                .withSuccessHandler(res => resolve(res))
+                .withFailureHandler(err => reject(err))
+                .pullAllData();
+            });
+          } else {
+            const url = appState.settings.gsheetUrl;
+            if (url && url.startsWith('http')) {
+              const res = await fetch(`${url}?action=pull`);
+              if (res.ok) data = await res.json();
             }
+          }
+
+          if (data && data.status === 'success') {
+            if (Array.isArray(data.users) && data.users.length > 0) {
+              appState.users = data.users.map(u => ({
+                username: String(u.username || '').trim(),
+                password: String(u.password || '').trim(),
+                name: String(u.name || '').trim(),
+                role: String(u.role || 'piket').trim(),
+                roleLabel: String(u.roleLabel || ROLE_LABELS[u.role] || 'Petugas Piket').trim()
+              }));
+              renderQuickLoginButtons();
+            }
+            if (Array.isArray(data.students) && data.students.length > 0) appState.students = data.students;
+            if (Array.isArray(data.classes) && data.classes.length > 0) appState.classes = data.classes;
+            if (Array.isArray(data.attendance) && data.attendance.length > 0) appState.attendance = data.attendance;
+            saveState();
+            if (mode === 'pull') showToast('Data terbaru berhasil ditarik dari Google Sheets!', 'success');
           }
         }
 
-        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-        if (txt) txt.textContent = 'Sheets Terhubung';
+        updateSyncStatusUI('online');
       } catch (err) {
-        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
-        if (txt) txt.textContent = 'Tersimpan Lokal';
+        updateSyncStatusUI('offline');
         if (mode === 'pull' || mode === 'push') {
-          showToast('Koneksi Sheets tertunda, data aman tersimpan di perangkat.', 'warning');
+          showToast('Koneksi Sheets tertunda, data aman tersimpan di Mode Lokal.', 'warning');
         }
       } finally {
         if (icon) icon.classList.remove('animate-spin');
-        renderDashboard();
+        if (currentUser) {
+          renderDashboard();
+          if (!document.getElementById('page-settings').classList.contains('hidden')) {
+            renderUsersTable();
+          }
+        }
       }
     }
 
@@ -1751,18 +2038,19 @@ function jsonResponse(obj) {
         btnPulang.className = 'flex-1 sm:flex-none px-5 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition bg-royal-600 text-white shadow';
         btnMasuk.className = 'flex-1 sm:flex-none px-5 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition text-slate-700 hover:text-navy-900';
       }
-      document.getElementById('usb-scanner-input').focus();
+      document.getElementById('usb-scanner-input')?.focus();
     }
 
     async function startQrCamera() {
       const readerEl = document.getElementById('qr-reader');
       if (isScanningCamera) return;
+      const facingMode = document.getElementById('camera-facing-select')?.value || 'environment';
 
       try {
         html5QrCode = new Html5Qrcode('qr-reader');
         await html5QrCode.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 220, height: 220 } },
+          { facingMode: facingMode },
+          { fps: 12, qrbox: { width: 220, height: 220 } },
           (decodedText) => {
             const now = Date.now();
             if (decodedText === lastScannedCode && now - lastScannedTime < 3500) return;
@@ -1776,8 +2064,17 @@ function jsonResponse(obj) {
         document.getElementById('btn-start-cam').classList.add('hidden');
         document.getElementById('btn-stop-cam').classList.remove('hidden');
       } catch (err) {
-        readerEl.innerHTML = `<div class="p-4 text-center text-amber-400 text-xs font-semibold">Kamera tidak tersedia atau izin ditolak browser. Gunakan Input USB Scanner atau Pilih Manual di bawah.</div>`;
+        if (readerEl) {
+          readerEl.innerHTML = `<div class="p-4 text-center text-amber-400 text-xs font-semibold">Kamera tidak tersedia atau izin ditolak browser. Gunakan Input USB Scanner atau Pilih Manual di bawah.</div>`;
+        }
         showToast('Gagal mengakses kamera. Pastikan izin kamera aktif.', 'warning');
+      }
+    }
+
+    async function restartQrCameraIfActive() {
+      if (isScanningCamera) {
+        await stopQrCamera();
+        await startQrCamera();
       }
     }
 
@@ -1789,10 +2086,14 @@ function jsonResponse(obj) {
         } catch (e) {}
       }
       isScanningCamera = false;
-      const btnStart = document.getElementById('btn-start-cam');
-      const btnStop = document.getElementById('btn-stop-cam');
-      if (btnStart) btnStart.classList.remove('hidden');
-      if (btnStop) btnStop.classList.add('hidden');
+      const startBtn = document.getElementById('btn-start-cam');
+      const stopBtn = document.getElementById('btn-stop-cam');
+      if (startBtn) startBtn.classList.remove('hidden');
+      if (stopBtn) stopBtn.classList.add('hidden');
+      const readerEl = document.getElementById('qr-reader');
+      if (readerEl) {
+        readerEl.innerHTML = 'Klik "Aktifkan" untuk memindai QR Code / Barcode kartu siswa';
+      }
     }
 
     function handleManualBarcodeSubmit(e) {
@@ -1817,7 +2118,6 @@ function jsonResponse(obj) {
     }
 
     function processStudentScan(code) {
-      // Find student by NISN, NIS, or ID
       const student = appState.students.find(s =>
         s.nisn === code || s.nis === code || s.id === code
       );
@@ -1841,9 +2141,8 @@ function jsonResponse(obj) {
       const nowTime = getShortTimeWIB();
       const existingIdx = appState.attendance.findIndex(a => a.date === today && a.nisn === student.nisn);
 
-      // MODE ABSENSI MASUK
       if (currentScanMode === 'MASUK') {
-        if (existingIdx !== -1 && appState.attendance[existingIdx].jam_masuk) {
+        if (existingIdx !== -1 && appState.attendance[existingIdx].jam_masuk && appState.attendance[existingIdx].jam_masuk !== '-') {
           const rec = appState.attendance[existingIdx];
           playBeep('error');
           card.className = 'bg-amber-50 border-2 border-amber-500 rounded-2xl p-6 flex-1 flex flex-col items-center justify-center text-center';
@@ -1862,7 +2161,6 @@ function jsonResponse(obj) {
           return;
         }
 
-        // Determine HADIR vs TERLAMBAT
         const isLate = nowTime > appState.settings.batasTelat;
         const status = isLate ? 'TERLAMBAT' : 'HADIR';
         const recordId = `ATT-${today}-${student.nisn}`;
@@ -1890,7 +2188,6 @@ function jsonResponse(obj) {
         saveState();
         syncWithGoogleSheets('single', { action: 'record_attendance', data: newRecord, wa: waPayload });
 
-        // Render Success Card
         card.className = isLate
           ? 'bg-amber-50 border-2 border-amber-500 rounded-2xl p-6 flex-1 flex flex-col items-center justify-center text-center'
           : 'bg-emerald-50 border-2 border-emerald-600 rounded-2xl p-6 flex-1 flex flex-col items-center justify-center text-center';
@@ -1913,9 +2210,8 @@ function jsonResponse(obj) {
         return;
       }
 
-      // MODE ABSENSI PULANG
       if (currentScanMode === 'PULANG') {
-        if (existingIdx !== -1 && appState.attendance[existingIdx].jam_pulang) {
+        if (existingIdx !== -1 && appState.attendance[existingIdx].jam_pulang && appState.attendance[existingIdx].jam_pulang !== '-') {
           playBeep('error');
           showToast(`${student.nama} sudah melakukan absensi pulang pukul ${appState.attendance[existingIdx].jam_pulang} WIB`, 'warning');
           return;
@@ -1991,7 +2287,6 @@ function jsonResponse(obj) {
       };
       appState.waLogs.unshift(logEntry);
 
-      // Direct HTTP POST if configured directly (Fonnte/Generic) and not via Apps Script
       if (appState.settings.waProvider === 'fonnte' && appState.settings.waEndpoint && appState.settings.waToken) {
         fetch(appState.settings.waEndpoint, {
           method: 'POST',
@@ -2043,7 +2338,6 @@ function jsonResponse(obj) {
       document.getElementById('dash-jam-pulang').textContent = appState.settings.jamPulang;
       document.getElementById('today-date-badge').textContent = formatIndoDate(today);
 
-      // Render Latest 10 Scans Table
       const tbody = document.getElementById('recent-scans-tbody');
       const recent = todayAtt.slice(0, 10);
       if (recent.length === 0) {
@@ -2069,7 +2363,6 @@ function jsonResponse(obj) {
         }).join('');
       }
 
-      // Render Unscanned Students List
       const query = (document.getElementById('unscanned-search')?.value || '').toLowerCase();
       const filteredUnscanned = unscannedStudents.filter(s =>
         s.nama.toLowerCase().includes(query) || s.kelas.toLowerCase().includes(query)
@@ -2149,7 +2442,6 @@ function jsonResponse(obj) {
     function updateDashboardCharts(hadir = 0, telat = 0, izin = 0, sakit = 0, alpa = 0) {
       const period = document.getElementById('chart-period-filter')?.value || 'daily';
 
-      // Bar Chart Data
       let labels = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
       let hadirData = [94, 96, 92, 95, 97, 91];
       let telatData = [4, 2, 5, 3, 2, 6];
@@ -2185,7 +2477,6 @@ function jsonResponse(obj) {
         });
       }
 
-      // Doughnut Chart Data
       const dCtx = document.getElementById('attendanceDoughnutChart');
       if (dCtx) {
         if (doughnutChartInstance) doughnutChartInstance.destroy();
@@ -2393,7 +2684,7 @@ function jsonResponse(obj) {
       reader.readAsBinaryString(file);
     }
 
-    function buildIDCardHTML(student, qrElementId) {
+    function buildIDCardHTML(student, qrElementId, barcodeElementId = null) {
       return `
         <div class="bg-navy-900 text-white p-3 flex items-center gap-2.5 border-b-4 border-gold-500">
           <div class="w-8 h-8 rounded-lg bg-gold-600 flex items-center justify-center font-extrabold text-xs">SMP2</div>
@@ -2402,12 +2693,13 @@ function jsonResponse(obj) {
             <div class="text-[10px] text-gold-400 font-semibold">KARTU PELAJAR & ABSENSI DIGITAL</div>
           </div>
         </div>
-        <div class="p-4 flex items-center justify-between gap-3 bg-white">
+        <div class="p-3.5 flex items-center justify-between gap-3 bg-white">
           <div class="space-y-1">
             <div class="text-sm font-extrabold text-navy-900 leading-snug">${student.nama}</div>
             <div class="text-xs font-bold text-royal-600">Kelas: ${student.kelas}</div>
             <div class="text-[11px] text-slate-600 font-mono">NISN: ${student.nisn}</div>
             <div class="text-[11px] text-slate-500 font-mono">NIS: ${student.nis}</div>
+            ${barcodeElementId ? `<svg id="${barcodeElementId}" class="mt-1 max-w-[140px] h-7"></svg>` : ''}
           </div>
           <div id="${qrElementId}" class="p-1.5 bg-white border border-slate-300 rounded-lg shrink-0"></div>
         </div>
@@ -2421,7 +2713,7 @@ function jsonResponse(obj) {
       const student = appState.students.find(s => s.id === id);
       if (!student) return;
       const container = document.getElementById('single-card-container');
-      container.innerHTML = buildIDCardHTML(student, 'qr-single-box');
+      container.innerHTML = buildIDCardHTML(student, 'qr-single-box', 'bc-single-box');
       new QRCode(document.getElementById('qr-single-box'), {
         text: student.nisn,
         width: 84,
@@ -2429,6 +2721,11 @@ function jsonResponse(obj) {
         colorDark: '#0F294A',
         colorLight: '#FFFFFF'
       });
+      if (window.JsBarcode) {
+        try {
+          JsBarcode('#bc-single-box', student.nisn, { format: 'CODE128', width: 1.3, height: 26, displayValue: false, margin: 0 });
+        } catch (e) {}
+      }
       const modal = document.getElementById('modal-qr-preview');
       modal.classList.remove('hidden');
       modal.classList.add('flex');
@@ -2448,7 +2745,7 @@ function jsonResponse(obj) {
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
             ${appState.students.map(s => `
               <div style="border: 2px solid #0F294A; border-radius: 10px; overflow: hidden; break-inside: avoid;">
-                ${buildIDCardHTML(s, 'bulk-qr-' + s.id)}
+                ${buildIDCardHTML(s, 'bulk-qr-' + s.id, 'bulk-bc-' + s.id)}
               </div>
             `).join('')}
           </div>
@@ -2458,6 +2755,11 @@ function jsonResponse(obj) {
         const el = document.getElementById('bulk-qr-' + s.id);
         if (el) {
           new QRCode(el, { text: s.nisn, width: 78, height: 78, colorDark: '#0F294A', colorLight: '#FFFFFF' });
+        }
+        if (window.JsBarcode) {
+          try {
+            JsBarcode('#bulk-bc-' + s.id, s.nisn, { format: 'CODE128', width: 1.2, height: 24, displayValue: false, margin: 0 });
+          } catch (e) {}
         }
       });
       setTimeout(() => window.print(), 300);
@@ -2570,7 +2872,6 @@ function jsonResponse(obj) {
 
       appState.leaves.unshift(leaveObj);
 
-      // If submitted by logged-in staff, immediately reflect in attendance
       if (currentUser) {
         applyLeaveToAttendance(leaveObj);
       }
@@ -2662,7 +2963,6 @@ function jsonResponse(obj) {
     // 12. REKAPITULASI & LAPORAN (EXCEL & PRINT PDF)
     // =========================================================================
     function renderReportsPage() {
-      // Top Disciplined Students (earliest jam_masuk)
       const hadirRecords = appState.attendance.filter(a => a.status === 'HADIR' && a.jam_masuk && a.jam_masuk !== '-');
       hadirRecords.sort((a, b) => a.jam_masuk.localeCompare(b.jam_masuk));
       const discList = document.getElementById('top-disciplined-list');
@@ -2673,10 +2973,9 @@ function jsonResponse(obj) {
         </div>
       `).join('') || '<div class="text-slate-400">Belum ada data kehadiran.</div>';
 
-      // Top Late Students
       const lateRecords = appState.attendance.filter(a => a.status === 'TERLAMBAT');
       const lateList = document.getElementById('top-late-list');
-      lateList.innerHTML = lateRecords.slice(0, 5).map((r, i) => `
+      lateList.innerHTML = lateRecords.slice(0, 5).map((r) => `
         <div class="flex items-center justify-between p-2 rounded-lg bg-amber-50 border border-amber-200">
           <span><strong>${r.nama}</strong> (${r.kelas})</span>
           <span class="font-extrabold text-amber-700">${r.date} &bull; ${r.jam_masuk} WIB</span>
@@ -2799,7 +3098,10 @@ function jsonResponse(obj) {
         tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">Belum ada riwayat pengiriman WhatsApp.</td></tr>`;
         return;
       }
-      tbody.innerHTML = appState.waLogs.map(log => `
+      tbody.innerHTML = appState.waLogs.map(log => {
+        const cleanPhone = String(log.phone || '').replace(/\D/g, '');
+        const waMeLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(log.message || '')}`;
+        return `
         <tr class="hover:bg-slate-50">
           <td class="py-2.5 px-3 text-[11px] font-semibold text-slate-600">${log.time}</td>
           <td class="py-2.5 px-3">
@@ -2810,11 +3112,13 @@ function jsonResponse(obj) {
           <td class="py-2.5 px-3">
             <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">${log.status}</span>
           </td>
-          <td class="py-2.5 px-3 text-right">
+          <td class="py-2.5 px-3 text-right space-x-1">
             <button onclick="resendWaLog('${log.id}')" class="px-2.5 py-1 rounded-lg bg-royal-600 text-white font-bold text-[11px]">Kirim Ulang</button>
+            <a href="${waMeLink}" target="_blank" rel="noopener" class="inline-block px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px]">wa.me</a>
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function saveWhatsAppSettings() {
@@ -2851,8 +3155,192 @@ function jsonResponse(obj) {
     }
 
     // =========================================================================
-    // 14. SETTINGS, BACKUP/RESTORE & APPS SCRIPT MODAL
+    // 14. SETTINGS, MANAJEMEN PENGGUNA, BACKUP/RESTORE & APPS SCRIPT MODAL
     // =========================================================================
+    let revealedPasswords = new Set();
+
+    function renderQuickLoginButtons() {
+      const container = document.getElementById('quick-login-grid');
+      if (!container) return;
+      const usersList = (Array.isArray(appState.users) && appState.users.length > 0) ? appState.users : DEFAULT_USERS;
+      const shortLabels = { admin: 'Admin', kepsek: 'Kepsek', guru: 'Guru', piket: 'Piket' };
+
+      container.innerHTML = usersList.slice(0, 4).map(u => {
+        const badge = shortLabels[u.role] || u.roleLabel || u.role;
+        const safeU = String(u.username || '').replace(/'/g, "\\'");
+        const safeP = String(u.password || '').replace(/'/g, "\\'");
+        return `
+          <button type="button" onclick="fillLogin('${safeU}','${safeP}')" class="bg-navy-800 hover:bg-royal-600 text-left p-2 rounded-lg border border-navy-700 transition">
+            <div class="font-bold text-white truncate">${badge}</div>
+            <div class="text-slate-300 text-[11px] truncate">${u.username} / ${u.password}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderUsersTable() {
+      const tbody = document.getElementById('users-tbody');
+      if (!tbody) return;
+      const usersList = Array.isArray(appState.users) ? appState.users : [];
+
+      if (usersList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Belum ada akun petugas terdaftar.</td></tr>`;
+        return;
+      }
+
+      const roleBadgeColors = {
+        admin: 'bg-navy-900 text-gold-500 border-navy-700',
+        kepsek: 'bg-purple-100 text-purple-800 border-purple-300',
+        guru: 'bg-blue-100 text-blue-800 border-blue-300',
+        piket: 'bg-emerald-100 text-emerald-800 border-emerald-300'
+      };
+
+      tbody.innerHTML = usersList.map(u => {
+        const isShown = revealedPasswords.has(u.username);
+        const masked = '•'.repeat(Math.max(6, String(u.password || '').length));
+        const badgeClass = roleBadgeColors[u.role] || 'bg-slate-100 text-slate-800 border-slate-300';
+        const safeU = String(u.username || '').replace(/'/g, "\\'");
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="py-3 px-4 font-bold text-navy-900">${u.name}</td>
+            <td class="py-3 px-4 font-mono font-bold text-slate-700">${u.username}</td>
+            <td class="py-3 px-4">
+              <div class="inline-flex items-center gap-2 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 font-mono text-[11px]">
+                <span>${isShown ? u.password : masked}</span>
+                <button type="button" onclick="togglePasswordVisibility('${safeU}')" class="text-slate-500 hover:text-royal-600" title="Tampilkan/Sembunyikan">
+                  <i data-lucide="${isShown ? 'eye-off' : 'eye'}" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </td>
+            <td class="py-3 px-4">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${badgeClass}">
+                ${u.roleLabel || ROLE_LABELS[u.role] || u.role}
+              </span>
+            </td>
+            <td class="py-3 px-4 text-right space-x-1">
+              <button type="button" onclick="openUserModal('${safeU}')" class="p-1.5 rounded-lg bg-slate-100 hover:bg-royal-600 hover:text-white text-slate-700 transition" title="Edit Akun">
+                <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+              </button>
+              <button type="button" onclick="deleteUser('${safeU}')" class="p-1.5 rounded-lg bg-red-50 hover:bg-red-600 hover:text-white text-red-600 transition" title="Hapus Akun">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function togglePasswordVisibility(username) {
+      if (revealedPasswords.has(username)) revealedPasswords.delete(username);
+      else revealedPasswords.add(username);
+      renderUsersTable();
+    }
+
+    function openUserModal(username = null) {
+      const modal = document.getElementById('modal-user');
+      const title = document.getElementById('modal-user-title');
+      if (username) {
+        const u = appState.users.find(x => x.username === username);
+        if (!u) return;
+        title.textContent = 'Edit Akun Login Petugas';
+        document.getElementById('usr-old-username').value = u.username;
+        document.getElementById('usr-name').value = u.name;
+        document.getElementById('usr-username').value = u.username;
+        document.getElementById('usr-password').value = u.password;
+        document.getElementById('usr-role').value = u.role;
+      } else {
+        title.textContent = 'Tambah Akun Login Petugas';
+        document.getElementById('usr-old-username').value = '';
+        document.getElementById('usr-name').value = '';
+        document.getElementById('usr-username').value = '';
+        document.getElementById('usr-password').value = '';
+        document.getElementById('usr-role').value = 'piket';
+      }
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function saveUserForm(e) {
+      e.preventDefault();
+      const oldUsername = document.getElementById('usr-old-username').value.trim();
+      const name = document.getElementById('usr-name').value.trim();
+      const username = document.getElementById('usr-username').value.trim().toLowerCase().replace(/\s+/g, '');
+      const password = document.getElementById('usr-password').value.trim();
+      const role = document.getElementById('usr-role').value;
+      const roleLabel = ROLE_LABELS[role] || 'Petugas Piket';
+
+      if (!username || !password || !name) {
+        showToast('Seluruh kolom akun wajib diisi!', 'warning');
+        return;
+      }
+
+      // Cek duplikasi username
+      const duplicate = appState.users.find(u => u.username.toLowerCase() === username && u.username !== oldUsername);
+      if (duplicate) {
+        showToast(`Username "${username}" sudah digunakan akun lain!`, 'error');
+        return;
+      }
+
+      // Cegah penurunan hak akses admin terakhir
+      if (oldUsername) {
+        const existingUser = appState.users.find(u => u.username === oldUsername);
+        if (existingUser && existingUser.role === 'admin' && role !== 'admin') {
+          const adminCount = appState.users.filter(u => u.role === 'admin').length;
+          if (adminCount <= 1) {
+            showToast('Minimal harus tersisa 1 akun Admin Sekolah!', 'error');
+            return;
+          }
+        }
+      }
+
+      const userObj = { username, password, name, role, roleLabel };
+
+      if (oldUsername) {
+        const idx = appState.users.findIndex(u => u.username === oldUsername);
+        if (idx !== -1) appState.users[idx] = userObj;
+        if (currentUser && currentUser.username === oldUsername) {
+          currentUser = userObj;
+          document.getElementById('user-display-name').textContent = userObj.name;
+          document.getElementById('user-display-role').textContent = userObj.roleLabel;
+        }
+      } else {
+        appState.users.push(userObj);
+      }
+
+      saveState();
+      renderUsersTable();
+      renderQuickLoginButtons();
+      syncWithGoogleSheets('push');
+      closeModal('modal-user');
+      showToast(`Akun "${username}" berhasil disimpan & disinkronkan ke Google Sheets!`, 'success');
+    }
+
+    function deleteUser(username) {
+      const target = appState.users.find(u => u.username === username);
+      if (!target) return;
+
+      if (target.role === 'admin') {
+        const adminCount = appState.users.filter(u => u.role === 'admin').length;
+        if (adminCount <= 1) {
+          showToast('Tidak dapat menghapus akun Admin Sekolah terakhir!', 'error');
+          return;
+        }
+      }
+
+      if (currentUser && currentUser.username === username) {
+        showToast('Tidak dapat menghapus akun yang sedang aktif login!', 'warning');
+        return;
+      }
+
+      appState.users = appState.users.filter(u => u.username !== username);
+      saveState();
+      renderUsersTable();
+      renderQuickLoginButtons();
+      syncWithGoogleSheets('push');
+      showToast(`Akun "${username}" berhasil dihapus.`, 'info');
+    }
+
     function loadSettingsInputs() {
       document.getElementById('set-gsheet-url').value = appState.settings.gsheetUrl;
       document.getElementById('set-jam-masuk').value = appState.settings.jamMasuk;
@@ -2958,10 +3446,21 @@ function jsonResponse(obj) {
     // =========================================================================
     // INITIALIZE ON WINDOW LOAD
     // =========================================================================
+    window.addEventListener('online', () => {
+      updateSyncStatusUI('online');
+      flushOfflineQueue();
+    });
+    window.addEventListener('offline', () => {
+      updateSyncStatusUI('offline');
+    });
+
     window.onload = function() {
       updateClockWIB();
       setInterval(updateClockWIB, 1000);
+      renderQuickLoginButtons();
       populateAllDropdowns();
+      updateSyncStatusUI(navigator.onLine ? 'online' : 'offline');
+      syncWithGoogleSheets('pull');
       lucide.createIcons();
     };
   </script>
