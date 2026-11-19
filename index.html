@@ -957,6 +957,9 @@
                 <button onclick="saveSchoolSettings()" class="bg-royal-600 hover:bg-royal-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow">
                   Simpan URL & Pengaturan
                 </button>
+                <button onclick="testGoogleSheetsConnection()" class="bg-navy-900 hover:bg-navy-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow flex items-center gap-1.5">
+                  <i data-lucide="wifi" class="w-4 h-4 text-emerald-400"></i> Uji Koneksi Online
+                </button>
                 <button onclick="syncWithGoogleSheets('pull')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow flex items-center gap-1.5">
                   <i data-lucide="cloud-download" class="w-4 h-4"></i> Tarik Data dari Sheets (Pull)
                 </button>
@@ -1258,7 +1261,9 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const payload = JSON.parse(e.postData.contents);
+    // Mendukung pengiriman dari Hidden Form (e.parameter.payload) maupun Fetch JSON (e.postData.contents)
+    const raw = (e && e.parameter && e.parameter.payload) ? e.parameter.payload : (e && e.postData ? e.postData.contents : '{}');
+    const payload = JSON.parse(raw);
     return jsonResponse(processSyncPayload(payload));
   } catch (err) {
     return jsonResponse({ status: 'error', message: err.toString() });
@@ -1476,6 +1481,12 @@ function jsonResponse(obj) {
 
   <!-- HIDDEN PRINT AREA FOR PDF REPORTS & QR STUDENT CARDS -->
   <div id="print-area" class="hidden"></div>
+
+  <!-- HIDDEN IFRAME & FORM FOR CORS-FREE APPS SCRIPT SYNC -->
+  <iframe name="gas_sync_iframe" id="gas_sync_iframe" class="hidden"></iframe>
+  <form id="gas_sync_form" method="POST" target="gas_sync_iframe" class="hidden">
+    <input type="hidden" name="payload" id="gas_sync_payload_input" />
+  </form>
 
   <!-- ===================================================================== -->
   <script>
@@ -1831,6 +1842,8 @@ function jsonResponse(obj) {
     // =========================================================================
     // 5. GOOGLE SHEETS DUAL-MODE SYNC & OFFLINE QUEUE
     // =========================================================================
+    let lastCloudSyncSuccess = false;
+
     function getSyncQueue() {
       try {
         return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
@@ -1867,14 +1880,18 @@ function jsonResponse(obj) {
         }
       }
 
-      const modeLabel = isInsideAppsScript() ? 'Tersinkronisasi Online (GAS)' : 'Tersinkronisasi Online';
+      const modeLabel = isInsideAppsScript()
+        ? 'Tersinkronisasi Online (GAS)'
+        : (lastCloudSyncSuccess ? 'Tersinkronisasi Online (Cloud)' : 'Tersinkronisasi Online');
+
       if (state === 'syncing') {
         if (txt) txt.textContent = 'Menyinkronkan...';
+        if (authTxt) authTxt.textContent = 'Menyinkronkan...';
       } else if (state === 'offline' || !navigator.onLine) {
         if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
         if (txt) txt.textContent = 'Mode Lokal (Antrean)';
         if (authDot) authDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
-        if (authTxt) authTxt.textContent = 'Mode Lokal';
+        if (authTxt) authTxt.textContent = 'Mode Lokal (Cek URL GAS)';
       } else {
         if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
         if (txt) txt.textContent = modeLabel;
@@ -1904,18 +1921,32 @@ function jsonResponse(obj) {
         // Mode 1: Internal Google Apps Script (google.script.run)
         if (isInsideAppsScript()) {
           window.google.script.run
-            .withSuccessHandler(res => resolve(res))
+            .withSuccessHandler(res => {
+              lastCloudSyncSuccess = true;
+              resolve(res);
+            })
             .withFailureHandler(err => reject(err))
             .serverSyncAction(payload);
           return;
         }
 
-        // Mode 2: External Fetch ke Web App URL Apps Script
-        const url = appState.settings.gsheetUrl;
+        // Mode 2: External Fetch + Form/Iframe Fallback ke Web App URL Apps Script
+        const url = (appState.settings.gsheetUrl || '').trim();
         if (!url || !url.startsWith('http')) {
           reject(new Error('URL Google Apps Script belum diatur'));
           return;
         }
+
+        // Kirim via Hidden Form ke Hidden Iframe (bebas blokir CORS browser)
+        try {
+          const form = document.getElementById('gas_sync_form');
+          const input = document.getElementById('gas_sync_payload_input');
+          if (form && input) {
+            form.action = url;
+            input.value = JSON.stringify(payload);
+            form.submit();
+          }
+        } catch (_) {}
 
         fetch(url, {
           method: 'POST',
@@ -1923,9 +1954,27 @@ function jsonResponse(obj) {
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         })
-          .then(() => resolve({ status: 'success' }))
+          .then(() => {
+            lastCloudSyncSuccess = true;
+            resolve({ status: 'success' });
+          })
           .catch(err => reject(err));
       });
+    }
+
+    async function testGoogleSheetsConnection() {
+      const urlInput = document.getElementById('set-gsheet-url');
+      if (urlInput) {
+        appState.settings.gsheetUrl = urlInput.value.trim();
+        saveState();
+      }
+      showToast('Menguji koneksi ke server Google Sheets...', 'info');
+      await syncWithGoogleSheets('both');
+      if (lastCloudSyncSuccess) {
+        showToast('Koneksi Online Berhasil! Web App terhubung ke Google Sheets.', 'success');
+      } else {
+        showToast('Gagal terhubung. Pastikan Deploy Apps Script memilih "Who has access: Anyone".', 'error');
+      }
     }
 
     async function syncWithGoogleSheets(mode = 'both', singleRecordPayload = null) {
@@ -1975,15 +2024,22 @@ function jsonResponse(obj) {
           if (isInsideAppsScript()) {
             data = await new Promise((resolve, reject) => {
               window.google.script.run
-                .withSuccessHandler(res => resolve(res))
+                .withSuccessHandler(res => {
+                  lastCloudSyncSuccess = true;
+                  resolve(res);
+                })
                 .withFailureHandler(err => reject(err))
                 .pullAllData();
             });
           } else {
-            const url = appState.settings.gsheetUrl;
+            const url = (appState.settings.gsheetUrl || '').trim();
             if (url && url.startsWith('http')) {
-              const res = await fetch(`${url}?action=pull`);
-              if (res.ok) data = await res.json();
+              const sep = url.includes('?') ? '&' : '?';
+              const res = await fetch(`${url}${sep}action=pull`, { redirect: 'follow' });
+              if (res.ok) {
+                data = await res.json();
+                lastCloudSyncSuccess = true;
+              }
             }
           }
 
@@ -2008,6 +2064,7 @@ function jsonResponse(obj) {
 
         updateSyncStatusUI('online');
       } catch (err) {
+        lastCloudSyncSuccess = false;
         updateSyncStatusUI('offline');
         if (mode === 'pull' || mode === 'push') {
           showToast('Koneksi Sheets tertunda, data aman tersimpan di Mode Lokal.', 'warning');
