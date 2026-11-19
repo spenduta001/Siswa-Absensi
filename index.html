@@ -1217,16 +1217,24 @@
     <div class="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border-t-4 border-emerald-600 max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
         <div>
-          <h3 class="text-base font-extrabold text-navy-900">Panduan & Kode Server Google Apps Script (Code.gs)</h3>
-          <p class="text-xs text-slate-500">Salin ke <strong>Extensions &rarr; Apps Script</strong> di Google Sheets Anda lalu Deploy sebagai Web App (Who has access: Anyone)</p>
+          <h3 class="text-base font-extrabold text-navy-900">Panduan & Kode Server Google Apps Script (Code.gs & Index.html)</h3>
+          <p class="text-xs text-slate-500">Buka Google Sheets &rarr; <strong>Extensions &rarr; Apps Script</strong> &rarr; Tempel <strong>Code.gs</strong> & buat file HTML <strong>Index</strong> &rarr; Deploy Web App (<strong>Anyone</strong>)</p>
         </div>
         <button onclick="closeModal('modal-apps-script')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 text-xs text-navy-900 space-y-1">
+        <div class="font-extrabold">Langkah Online Permanen (Dapat Diakses dari HP/Laptop Mana Saja):</div>
+        <ol class="list-decimal list-inside space-y-0.5 text-[11px] text-slate-700">
+          <li>Klik <strong>Salin Code.gs</strong> lalu tempelkan ke file <code>Code.gs</code> di editor Google Apps Script Anda.</li>
+          <li>Klik ikon <strong>+</strong> di samping <em>Files</em> &rarr; pilih <strong>HTML</strong> &rarr; beri nama <code>Index</code> &rarr; klik <strong>Salin Index.html</strong> lalu tempelkan ke dalamnya.</li>
+          <li>Klik <strong>Deploy &rarr; New deployment &rarr; Web app</strong> &rarr; atur <em>Execute as: Me</em> dan <em>Who has access: Anyone</em> &rarr; salin link <code>/exec</code>.</li>
+        </ol>
       </div>
       <div class="bg-slate-900 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-y-auto flex-1">
 <pre id="apps-script-code-text">// ============================================================================
 // BACKEND GOOGLE APPS SCRIPT - ABSENSI DIGITAL UPTD SMPN 2 KETAPANG
-// 7 Tab Otomatis: Data_Pengguna, Data_Siswa, Data_Kelas_Guru, Absensi_Masuk,
-// Absensi_Pulang, Pengaturan_Sistem, Log_Aktivitas
+// 9 Tab Otomatis: Data_Pengguna, Data_Siswa, Data_Kelas_Guru, Absensi_Masuk,
+// Absensi_Pulang, Pengajuan_Izin, Log_WA, Pengaturan_Sistem, Log_Aktivitas
 // ============================================================================
 
 const SHEET_SCHEMAS = {
@@ -1235,6 +1243,8 @@ const SHEET_SCHEMAS = {
   'Data_Kelas_Guru': ['name', 'level', 'wali'],
   'Absensi_Masuk': ['id', 'date', 'nisn', 'nama', 'kelas', 'jam_masuk', 'status', 'wa_status'],
   'Absensi_Pulang': ['id', 'date', 'nisn', 'nama', 'kelas', 'jam_pulang', 'wa_status'],
+  'Pengajuan_Izin': ['id', 'studentId', 'nisn', 'nama', 'kelas', 'date', 'type', 'reason', 'status'],
+  'Log_WA': ['id', 'time', 'student', 'phone', 'type', 'message', 'status'],
   'Pengaturan_Sistem': ['key', 'value'],
   'Log_Aktivitas': ['waktu', 'aksi', 'detail', 'status']
 };
@@ -1243,9 +1253,14 @@ function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   initSheets(ss);
 
-  // Jika dipanggil dengan parameter ?action=pull, kembalikan JSON database
+  // Jika dipanggil dengan parameter ?action=pull, kembalikan JSON database (mendukung JSONP callback)
   if (e && e.parameter && e.parameter.action === 'pull') {
-    return jsonResponse(pullAllData());
+    const data = pullAllData();
+    if (e.parameter.callback) {
+      return ContentService.createTextOutput(e.parameter.callback + '(' + JSON.stringify(data) + ')')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+    return jsonResponse(data);
   }
 
   // Jika dibuka langsung di browser sebagai Web App, tampilkan file HTML 'Index'
@@ -1261,7 +1276,6 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    // Mendukung pengiriman dari Hidden Form (e.parameter.payload) maupun Fetch JSON (e.postData.contents)
     const raw = (e && e.parameter && e.parameter.payload) ? e.parameter.payload : (e && e.postData ? e.postData.contents : '{}');
     const payload = JSON.parse(raw);
     return jsonResponse(processSyncPayload(payload));
@@ -1296,12 +1310,19 @@ function pullAllData() {
     wa_status: m.wa_status
   }));
 
+  const setRows = sheetToObjects(ss.getSheetByName('Pengaturan_Sistem'));
+  const settingsObj = {};
+  setRows.forEach(r => { if (r.key) settingsObj[r.key] = r.value; });
+
   return {
     status: 'success',
     users: sheetToObjects(ss.getSheetByName('Data_Pengguna')),
     students: sheetToObjects(ss.getSheetByName('Data_Siswa')),
     classes: sheetToObjects(ss.getSheetByName('Data_Kelas_Guru')),
-    attendance: mergedAttendance
+    attendance: mergedAttendance,
+    leaves: sheetToObjects(ss.getSheetByName('Pengajuan_Izin')),
+    waLogs: sheetToObjects(ss.getSheetByName('Log_WA')),
+    settings: settingsObj
   };
 }
 
@@ -1324,8 +1345,19 @@ function processSyncPayload(payload) {
     }
     logActivity(ss, 'SCAN_' + (d.jam_pulang ? 'PULANG' : 'MASUK'), d.nama + ' (' + d.kelas + ') - ' + d.status, 'OK');
 
-    if (payload.wa && payload.wa.endpoint && payload.wa.token && payload.wa.phone) {
-      sendWhatsAppGateway(payload.wa, ss);
+    if (payload.wa && payload.wa.phone) {
+      ss.getSheetByName('Log_WA').appendRow([
+        'WA-' + new Date().getTime(),
+        d.date + ' ' + (d.jam_pulang || d.jam_masuk || ''),
+        d.nama,
+        payload.wa.phone,
+        d.jam_pulang ? 'PULANG' : d.status,
+        payload.wa.message || '',
+        'Terkirim'
+      ]);
+      if (payload.wa.endpoint && payload.wa.token) {
+        sendWhatsAppGateway(payload.wa, ss);
+      }
     }
     return { status: 'success', message: 'Absensi tersimpan ke Google Sheets' };
   }
@@ -1334,6 +1366,8 @@ function processSyncPayload(payload) {
     if (payload.users) overwriteSheet(ss.getSheetByName('Data_Pengguna'), SHEET_SCHEMAS['Data_Pengguna'], payload.users);
     if (payload.students) overwriteSheet(ss.getSheetByName('Data_Siswa'), SHEET_SCHEMAS['Data_Siswa'], payload.students);
     if (payload.classes) overwriteSheet(ss.getSheetByName('Data_Kelas_Guru'), SHEET_SCHEMAS['Data_Kelas_Guru'], payload.classes);
+    if (payload.leaves) overwriteSheet(ss.getSheetByName('Pengajuan_Izin'), SHEET_SCHEMAS['Pengajuan_Izin'], payload.leaves);
+    if (payload.waLogs) overwriteSheet(ss.getSheetByName('Log_WA'), SHEET_SCHEMAS['Log_WA'], payload.waLogs);
     if (payload.attendance) {
       const masukRows = payload.attendance.map(a => ({
         id: a.id, date: a.date, nisn: a.nisn, nama: a.nama, kelas: a.kelas,
@@ -1351,7 +1385,7 @@ function processSyncPayload(payload) {
       overwriteSheet(ss.getSheetByName('Pengaturan_Sistem'), SHEET_SCHEMAS['Pengaturan_Sistem'], setRows);
     }
     logActivity(ss, 'SYNC_ALL', 'Sinkronisasi penuh seluruh tabel', 'OK');
-    return { status: 'success', message: 'Sinkronisasi 7 tab berhasil' };
+    return { status: 'success', message: 'Sinkronisasi 9 tab berhasil' };
   }
 
   if (action === 'send_wa') {
@@ -1430,9 +1464,12 @@ function jsonResponse(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }</pre>
       </div>
-      <div class="pt-3 flex justify-end gap-2">
+      <div class="pt-3 flex flex-wrap justify-end gap-2">
+        <button onclick="copyFullHtmlCode()" class="bg-royal-600 hover:bg-royal-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
+          <i data-lucide="file-code" class="w-4 h-4"></i> Salin Index.html (Tampilan Web)
+        </button>
         <button onclick="copyAppsScriptCode()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
-          <i data-lucide="copy" class="w-4 h-4"></i> Salin Kode ke Clipboard
+          <i data-lucide="copy" class="w-4 h-4"></i> Salin Code.gs (Server)
         </button>
       </div>
     </div>
@@ -2011,6 +2048,8 @@ function jsonResponse(obj) {
             students: appState.students,
             classes: appState.classes,
             attendance: appState.attendance,
+            leaves: appState.leaves,
+            waLogs: appState.waLogs,
             settings: appState.settings
           });
           if (mode === 'push') {
@@ -2035,10 +2074,16 @@ function jsonResponse(obj) {
             const url = (appState.settings.gsheetUrl || '').trim();
             if (url && url.startsWith('http')) {
               const sep = url.includes('?') ? '&' : '?';
-              const res = await fetch(`${url}${sep}action=pull`, { redirect: 'follow' });
-              if (res.ok) {
-                data = await res.json();
-                lastCloudSyncSuccess = true;
+              try {
+                const res = await fetch(`${url}${sep}action=pull`, { redirect: 'follow' });
+                if (res.ok) {
+                  data = await res.json();
+                  lastCloudSyncSuccess = true;
+                }
+              } catch (_) {
+                // Fallback JSONP jika browser memblokir CORS pada fetch GET
+                data = await pullViaJsonp(url);
+                if (data && data.status === 'success') lastCloudSyncSuccess = true;
               }
             }
           }
@@ -2057,7 +2102,10 @@ function jsonResponse(obj) {
             if (Array.isArray(data.students) && data.students.length > 0) appState.students = data.students;
             if (Array.isArray(data.classes) && data.classes.length > 0) appState.classes = data.classes;
             if (Array.isArray(data.attendance) && data.attendance.length > 0) appState.attendance = data.attendance;
+            if (Array.isArray(data.leaves) && data.leaves.length > 0) appState.leaves = data.leaves;
+            if (Array.isArray(data.waLogs) && data.waLogs.length > 0) appState.waLogs = data.waLogs;
             saveState();
+            updatePendingLeavesBadge();
             if (mode === 'pull') showToast('Data terbaru berhasil ditarik dari Google Sheets!', 'success');
           }
         }
@@ -3469,7 +3517,45 @@ function jsonResponse(obj) {
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      showToast('Kode Google Apps Script berhasil disalin ke clipboard!', 'success');
+      showToast('Kode server Code.gs berhasil disalin ke clipboard!', 'success');
+    }
+
+    function copyFullHtmlCode() {
+      const fullHtml = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      const textarea = document.createElement('textarea');
+      textarea.value = fullHtml;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast('Seluruh kode tampilan Index.html berhasil disalin! Tempel ke file Index di Apps Script.', 'success');
+    }
+
+    function pullViaJsonp(baseUrl) {
+      return new Promise((resolve) => {
+        const cbName = 'gasJsonpCb_' + Date.now();
+        const script = document.createElement('script');
+        const timer = setTimeout(() => {
+          delete window[cbName];
+          script.remove();
+          resolve(null);
+        }, 8000);
+        window[cbName] = function(res) {
+          clearTimeout(timer);
+          delete window[cbName];
+          script.remove();
+          resolve(res);
+        };
+        const sep = baseUrl.includes('?') ? '&' : '?';
+        script.src = `${baseUrl}${sep}action=pull&callback=${cbName}`;
+        script.onerror = () => {
+          clearTimeout(timer);
+          delete window[cbName];
+          script.remove();
+          resolve(null);
+        };
+        document.body.appendChild(script);
+      });
     }
 
     function closeModal(id) {
@@ -3518,6 +3604,10 @@ function jsonResponse(obj) {
       populateAllDropdowns();
       updateSyncStatusUI(navigator.onLine ? 'online' : 'offline');
       syncWithGoogleSheets('pull');
+      // Sinkronisasi otomatis setiap 45 detik agar seluruh perangkat selalu update real-time
+      setInterval(() => {
+        if (navigator.onLine) syncWithGoogleSheets('pull');
+      }, 45000);
       lucide.createIcons();
     };
   </script>
