@@ -86,20 +86,34 @@
 
     /* Print Styling for Student ID Cards & Reports */
     @media print {
-      body * {
-        visibility: hidden;
+      @page {
+        margin: 10mm;
       }
-      #print-area, #print-area * {
-        visibility: visible;
+      html, body {
+        background: #FFFFFF !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+      }
+      body > *:not(#print-area) {
+        display: none !important;
       }
       #print-area {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
+        display: block !important;
+        visibility: visible !important;
+        position: static !important;
+        width: 100% !important;
         background: #FFFFFF !important;
         padding: 0 !important;
         margin: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      #print-area * {
+        visibility: visible !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
       .no-print {
         display: none !important;
@@ -572,11 +586,15 @@
                     <span class="text-xs font-bold text-gold-500 flex items-center gap-1.5">
                       <i data-lucide="camera" class="w-4 h-4"></i> Kamera QR/Barcode
                     </span>
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex flex-wrap items-center gap-1.5">
                       <select id="camera-facing-select" onchange="restartQrCameraIfActive()" class="bg-slate-800 text-white border border-slate-700 rounded-lg text-[11px] font-bold px-2 py-1">
                         <option value="environment">Kamera Belakang</option>
                         <option value="user">Kamera Depan</option>
                       </select>
+                      <label class="bg-royal-600 hover:bg-royal-700 text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer inline-flex items-center gap-1" title="Scan dari foto/gambar kartu">
+                        <i data-lucide="image" class="w-3.5 h-3.5"></i> Gambar
+                        <input type="file" accept="image/*" onchange="scanBarcodeFromImage(event)" class="hidden">
+                      </label>
                       <button type="button" id="btn-start-cam" onclick="startQrCamera()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1 rounded-lg">
                         Aktifkan
                       </button>
@@ -586,8 +604,9 @@
                     </div>
                   </div>
                   <div id="qr-reader" class="min-h-[260px] flex items-center justify-center text-slate-400 text-xs">
-                    Klik "Aktifkan" untuk memindai QR Code / Barcode kartu siswa
+                    Klik "Aktifkan" untuk memindai QR Code / Barcode 1D kartu siswa
                   </div>
+                  <div id="qr-file-temp" class="hidden"></div>
                 </div>
 
                 <!-- Manual Search Fallback -->
@@ -2146,22 +2165,58 @@ function jsonResponse(obj) {
       document.getElementById('usb-scanner-input')?.focus();
     }
 
+    function getSupportedBarcodeFormats() {
+      if (typeof Html5QrcodeSupportedFormats === 'undefined') return undefined;
+      return [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.CODE_93,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.CODABAR
+      ];
+    }
+
     async function startQrCamera() {
       const readerEl = document.getElementById('qr-reader');
       if (isScanningCamera) return;
       const facingMode = document.getElementById('camera-facing-select')?.value || 'environment';
 
       try {
-        html5QrCode = new Html5Qrcode('qr-reader');
+        readerEl.innerHTML = '';
+        const formats = getSupportedBarcodeFormats();
+        html5QrCode = formats
+          ? new Html5Qrcode('qr-reader', { formatsToSupport: formats, verbose: false })
+          : new Html5Qrcode('qr-reader');
+
+        const scanConfig = {
+          fps: 15,
+          qrbox: function(viewfinderWidth, viewfinderHeight) {
+            const w = Math.min(Math.floor(viewfinderWidth * 0.85), 320);
+            const h = Math.min(Math.floor(viewfinderHeight * 0.65), 220);
+            return { width: Math.max(w, 180), height: Math.max(h, 140) };
+          },
+          aspectRatio: 1.333334,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        };
+
         await html5QrCode.start(
           { facingMode: facingMode },
-          { fps: 12, qrbox: { width: 220, height: 220 } },
+          scanConfig,
           (decodedText) => {
+            const cleanCode = String(decodedText || '').trim();
+            if (!cleanCode) return;
             const now = Date.now();
-            if (decodedText === lastScannedCode && now - lastScannedTime < 3500) return;
-            lastScannedCode = decodedText;
+            if (cleanCode === lastScannedCode && now - lastScannedTime < 3500) return;
+            lastScannedCode = cleanCode;
             lastScannedTime = now;
-            processStudentScan(decodedText.trim());
+            processStudentScan(cleanCode);
           },
           () => {}
         );
@@ -2170,9 +2225,31 @@ function jsonResponse(obj) {
         document.getElementById('btn-stop-cam').classList.remove('hidden');
       } catch (err) {
         if (readerEl) {
-          readerEl.innerHTML = `<div class="p-4 text-center text-amber-400 text-xs font-semibold">Kamera tidak tersedia atau izin ditolak browser. Gunakan Input USB Scanner atau Pilih Manual di bawah.</div>`;
+          readerEl.innerHTML = `<div class="p-4 text-center text-amber-400 text-xs font-semibold">Kamera tidak tersedia atau izin ditolak browser. Gunakan Input USB Scanner, Unggah Gambar, atau Pilih Manual di bawah.</div>`;
         }
         showToast('Gagal mengakses kamera. Pastikan izin kamera aktif.', 'warning');
+      }
+    }
+
+    async function scanBarcodeFromImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        if (isScanningCamera) {
+          await stopQrCamera();
+        }
+        const formats = getSupportedBarcodeFormats();
+        const fileScanner = formats
+          ? new Html5Qrcode('qr-file-temp', { formatsToSupport: formats, verbose: false })
+          : new Html5Qrcode('qr-file-temp');
+        const decodedText = await fileScanner.scanFile(file, true);
+        fileScanner.clear();
+        processStudentScan(String(decodedText || '').trim());
+      } catch (err) {
+        playBeep('error');
+        showToast('QR Code / Barcode tidak terbaca pada gambar tersebut. Pastikan gambar jelas & fokus.', 'error');
+      } finally {
+        e.target.value = '';
       }
     }
 
@@ -2222,10 +2299,24 @@ function jsonResponse(obj) {
       sel.value = '';
     }
 
-    function processStudentScan(code) {
-      const student = appState.students.find(s =>
-        s.nisn === code || s.nis === code || s.id === code
-      );
+    function normalizeScanCode(val) {
+      return String(val || '').trim().replace(/^0+/, '');
+    }
+
+    function processStudentScan(rawCode) {
+      const code = String(rawCode || '').trim();
+      const normCode = normalizeScanCode(code);
+      const student = appState.students.find(s => {
+        const sNisn = String(s.nisn || '').trim();
+        const sNis = String(s.nis || '').trim();
+        const sId = String(s.id || '').trim();
+        return (
+          sNisn === code ||
+          sNis === code ||
+          sId === code ||
+          (normCode && (normalizeScanCode(sNisn) === normCode || normalizeScanCode(sNis) === normCode))
+        );
+      });
 
       const card = document.getElementById('scan-result-card');
       if (!student) {
@@ -2819,37 +2910,86 @@ function jsonResponse(obj) {
       if (!student) return;
       const container = document.getElementById('single-card-container');
       container.innerHTML = buildIDCardHTML(student, 'qr-single-box', 'bc-single-box');
-      new QRCode(document.getElementById('qr-single-box'), {
-        text: student.nisn,
-        width: 84,
-        height: 84,
-        colorDark: '#0F294A',
-        colorLight: '#FFFFFF'
-      });
-      if (window.JsBarcode) {
-        try {
-          JsBarcode('#bc-single-box', student.nisn, { format: 'CODE128', width: 1.3, height: 26, displayValue: false, margin: 0 });
-        } catch (e) {}
-      }
+      renderCardCodesIntoElements(student, 'qr-single-box', 'bc-single-box', 84);
       const modal = document.getElementById('modal-qr-preview');
       modal.classList.remove('hidden');
       modal.classList.add('flex');
     }
 
+    function renderCardCodesIntoElements(student, qrContainerId, bcSvgId, qrSize = 84) {
+      const qrEl = document.getElementById(qrContainerId);
+      if (qrEl && typeof QRCode !== 'undefined') {
+        qrEl.innerHTML = '';
+        new QRCode(qrEl, {
+          text: String(student.nisn || student.nis || student.id).trim(),
+          width: qrSize,
+          height: qrSize,
+          colorDark: '#0F294A',
+          colorLight: '#FFFFFF',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        // Convert canvas to crisp <img> so print preview always renders it reliably
+        setTimeout(() => {
+          const canvas = qrEl.querySelector('canvas');
+          const img = qrEl.querySelector('img');
+          if (canvas && (!img || !img.src)) {
+            const dataUrl = canvas.toDataURL('image/png');
+            qrEl.innerHTML = `<img src="${dataUrl}" style="width:${qrSize}px;height:${qrSize}px;display:block;" alt="QR ${student.nisn}" />`;
+          } else if (img) {
+            img.style.display = 'block';
+            img.style.width = qrSize + 'px';
+            img.style.height = qrSize + 'px';
+          }
+        }, 50);
+      }
+      if (bcSvgId && typeof JsBarcode !== 'undefined') {
+        try {
+          JsBarcode('#' + bcSvgId, String(student.nisn || student.nis).trim(), {
+            format: 'CODE128',
+            width: 1.4,
+            height: 28,
+            displayValue: false,
+            margin: 2,
+            background: '#FFFFFF',
+            lineColor: '#0F294A'
+          });
+        } catch (e) {}
+      }
+    }
+
     function printSingleQRCard() {
+      const container = document.getElementById('single-card-container');
       const printArea = document.getElementById('print-area');
-      printArea.innerHTML = `<div style="width: 340px; margin: 20px auto; border: 2px solid #0F294A; border-radius: 12px; overflow: hidden;">${document.getElementById('single-card-container').innerHTML}</div>`;
-      window.print();
+      // Convert any canvas inside single-card-container to img before cloning
+      const canvas = container.querySelector('canvas');
+      if (canvas) {
+        const dataUrl = canvas.toDataURL('image/png');
+        const qrBox = document.getElementById('qr-single-box');
+        if (qrBox) {
+          qrBox.innerHTML = `<img src="${dataUrl}" style="width:84px;height:84px;display:block;" />`;
+        }
+      }
+      printArea.classList.remove('hidden');
+      printArea.innerHTML = `<div style="width: 350px; margin: 24px auto; border: 2px solid #0F294A; border-radius: 12px; overflow: hidden; background: #FFFFFF;">${container.innerHTML}</div>`;
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => printArea.classList.add('hidden'), 500);
+      }, 250);
     }
 
     function printBulkQRCards() {
+      if (!appState.students || appState.students.length === 0) {
+        showToast('Belum ada data siswa untuk dicetak.', 'warning');
+        return;
+      }
       const printArea = document.getElementById('print-area');
+      printArea.classList.remove('hidden');
       printArea.innerHTML = `
-        <div style="padding: 16px;">
-          <h2 style="text-align:center; font-weight:800; margin-bottom:16px;">KARTU ABSENSI QR CODE - UPTD SMPN 2 KETAPANG</h2>
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+        <div style="padding: 16px; background: #FFFFFF;">
+          <h2 style="text-align:center; font-weight:800; font-size:16px; color:#0F294A; margin-bottom:16px;">KARTU ABSENSI QR & BARCODE - UPTD SMPN 2 KETAPANG</h2>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;">
             ${appState.students.map(s => `
-              <div style="border: 2px solid #0F294A; border-radius: 10px; overflow: hidden; break-inside: avoid;">
+              <div style="border: 2px solid #0F294A; border-radius: 10px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; background: #FFFFFF;">
                 ${buildIDCardHTML(s, 'bulk-qr-' + s.id, 'bulk-bc-' + s.id)}
               </div>
             `).join('')}
@@ -2857,17 +2997,12 @@ function jsonResponse(obj) {
         </div>
       `;
       appState.students.forEach(s => {
-        const el = document.getElementById('bulk-qr-' + s.id);
-        if (el) {
-          new QRCode(el, { text: s.nisn, width: 78, height: 78, colorDark: '#0F294A', colorLight: '#FFFFFF' });
-        }
-        if (window.JsBarcode) {
-          try {
-            JsBarcode('#bulk-bc-' + s.id, s.nisn, { format: 'CODE128', width: 1.2, height: 24, displayValue: false, margin: 0 });
-          } catch (e) {}
-        }
+        renderCardCodesIntoElements(s, 'bulk-qr-' + s.id, 'bulk-bc-' + s.id, 78);
       });
-      setTimeout(() => window.print(), 300);
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => printArea.classList.add('hidden'), 500);
+      }, 450);
     }
 
     // =========================================================================
@@ -3138,6 +3273,7 @@ function jsonResponse(obj) {
     function printOfficialReport() {
       const rows = getFilteredReports();
       const printArea = document.getElementById('print-area');
+      printArea.classList.remove('hidden');
       printArea.innerHTML = `
         <div style="padding: 24px; font-family: Inter, sans-serif; color: #000;">
           <div style="text-align: center; border-bottom: 3px double #000; padding-bottom: 12px; margin-bottom: 20px;">
@@ -3184,7 +3320,10 @@ function jsonResponse(obj) {
           </div>
         </div>
       `;
-      window.print();
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => printArea.classList.add('hidden'), 500);
+      }, 200);
     }
 
     // =========================================================================
