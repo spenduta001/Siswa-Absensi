@@ -670,6 +670,9 @@
                 <button onclick="openStudentModal()" class="bg-royal-600 hover:bg-royal-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow">
                   <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah Siswa
                 </button>
+                <button onclick="openImportQrModal()" class="bg-navy-900 hover:bg-navy-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow border border-gold-500">
+                  <i data-lucide="qr-code" class="w-4 h-4 text-gold-500"></i> Import Kode QR / Barcode
+                </button>
                 <label class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow cursor-pointer">
                   <i data-lucide="upload" class="w-4 h-4"></i> Impor Excel
                   <input type="file" accept=".xlsx,.xls,.csv" onchange="importStudentsExcel(event)" class="hidden">
@@ -1258,7 +1261,7 @@
 
 const SHEET_SCHEMAS = {
   'Data_Pengguna': ['username', 'password', 'name', 'role', 'roleLabel'],
-  'Data_Siswa': ['id', 'nis', 'nisn', 'nama', 'jk', 'kelas', 'ortu', 'wa', 'alamat'],
+  'Data_Siswa': ['id', 'nis', 'nisn', 'nama', 'jk', 'kelas', 'ortu', 'wa', 'alamat', 'kode_qr'],
   'Data_Kelas_Guru': ['name', 'level', 'wali'],
   'Absensi_Masuk': ['id', 'date', 'nisn', 'nama', 'kelas', 'jam_masuk', 'status', 'wa_status'],
   'Absensi_Pulang': ['id', 'date', 'nisn', 'nama', 'kelas', 'jam_pulang', 'wa_status'],
@@ -1532,6 +1535,67 @@ function jsonResponse(obj) {
           <button type="submit" class="px-5 py-2 rounded-xl bg-royal-600 hover:bg-royal-700 text-white font-bold text-xs shadow">Simpan Akun</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 7. Modal Import Kode QR / Barcode Siswa -->
+  <div id="modal-import-qr" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border-t-4 border-navy-900 max-h-[90vh] overflow-y-auto space-y-5">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+        <div>
+          <h3 class="text-base font-extrabold text-navy-900">Import Kode QR / Barcode Kartu Siswa</h3>
+          <p class="text-xs text-slate-500">Hubungkan kode QR/Barcode kartu existing ke data siswa melalui Excel, daftar teks, atau scan foto kartu</p>
+        </div>
+        <button onclick="closeModal('modal-import-qr')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <!-- Metode 1: Import Massal via File Excel -->
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 class="text-xs font-extrabold text-navy-900 uppercase">1. Import Massal dari Excel (.xlsx / .csv)</h4>
+            <p class="text-[11px] text-slate-500">Kolom wajib: <code class="font-mono text-navy-900">NISN</code> dan <code class="font-mono text-navy-900">KODE_QR</code> (opsional: <code class="font-mono">NAMA</code>, <code class="font-mono">KELAS</code>)</p>
+          </div>
+          <button type="button" onclick="downloadQrImportTemplate()" class="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-navy-900 font-bold text-[11px] flex items-center gap-1">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Unduh Template Excel
+          </button>
+        </div>
+        <label class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Pilih File Excel Pemetaan Kode QR / Barcode
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="importQrMappingExcel(event)" class="hidden">
+        </label>
+      </div>
+
+      <!-- Metode 2: Input / Paste Daftar Cepat (NISN,KODE_BARCODE) -->
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5">
+        <h4 class="text-xs font-extrabold text-navy-900 uppercase">2. Paste Daftar Kode Cepat (Format: NISN,KODE_QR per baris)</h4>
+        <textarea id="qr-bulk-paste-input" rows="3" placeholder="Contoh:&#10;0112345001,SMP2-QR-001&#10;0112345002,SMP2-QR-002"
+          class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono"></textarea>
+        <div class="flex justify-end">
+          <button type="button" onclick="processQrBulkPaste()" class="px-4 py-2 rounded-xl bg-royal-600 hover:bg-royal-700 text-white font-bold text-xs shadow">
+            Terapkan Daftar Kode
+          </button>
+        </div>
+      </div>
+
+      <!-- Metode 3: Scan / Ekstrak Kode dari Foto Kartu Pelajar -->
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+        <h4 class="text-xs font-extrabold text-navy-900 uppercase">3. Ekstrak Kode dari Gambar / Foto Kartu Pelajar</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1">Pilih Siswa Tujuan</label>
+            <select id="import-qr-student-select" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold"></select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1">Unggah Foto Kartu (QR / Barcode 1D)</label>
+            <label class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-navy-900 hover:bg-royal-600 text-white font-bold text-xs cursor-pointer">
+              <i data-lucide="image" class="w-4 h-4"></i> Pilih Gambar Kartu
+              <input type="file" accept="image/*" onchange="extractQrImageForStudent(event)" class="hidden">
+            </label>
+          </div>
+        </div>
+        <div id="qr-import-temp" class="hidden"></div>
+      </div>
     </div>
   </div>
 
@@ -2120,7 +2184,12 @@ function jsonResponse(obj) {
             }
             if (Array.isArray(data.students) && data.students.length > 0) appState.students = data.students;
             if (Array.isArray(data.classes) && data.classes.length > 0) appState.classes = data.classes;
-            if (Array.isArray(data.attendance) && data.attendance.length > 0) appState.attendance = data.attendance;
+            if (Array.isArray(data.attendance) && data.attendance.length > 0) {
+              appState.attendance = data.attendance.map(a => ({
+                ...a,
+                date: normalizeDateStr(a.date)
+              }));
+            }
             if (Array.isArray(data.leaves) && data.leaves.length > 0) appState.leaves = data.leaves;
             if (Array.isArray(data.waLogs) && data.waLogs.length > 0) appState.waLogs = data.waLogs;
             saveState();
@@ -2310,11 +2379,13 @@ function jsonResponse(obj) {
         const sNisn = String(s.nisn || '').trim();
         const sNis = String(s.nis || '').trim();
         const sId = String(s.id || '').trim();
+        const sQr = String(s.kode_qr || '').trim();
         return (
           sNisn === code ||
           sNis === code ||
           sId === code ||
-          (normCode && (normalizeScanCode(sNisn) === normCode || normalizeScanCode(sNis) === normCode))
+          (sQr && sQr === code) ||
+          (normCode && (normalizeScanCode(sNisn) === normCode || normalizeScanCode(sNis) === normCode || (sQr && normalizeScanCode(sQr) === normCode)))
         );
       });
 
@@ -2370,18 +2441,19 @@ function jsonResponse(obj) {
           jam_masuk: nowTime,
           jam_pulang: existingIdx !== -1 ? appState.attendance[existingIdx].jam_pulang : '',
           status: status,
-          wa_status: 'Terkirim'
+          wa_status: 'Terkirim',
+          updated_at: getTimeWIB()
         };
 
         if (existingIdx !== -1) {
-          appState.attendance[existingIdx] = newRecord;
-        } else {
-          appState.attendance.unshift(newRecord);
+          appState.attendance.splice(existingIdx, 1);
         }
+        appState.attendance.unshift(newRecord);
 
         playBeep(isLate ? 'late' : 'success');
         const waPayload = triggerWhatsAppNotification(student, newRecord, isLate ? 'TERLAMBAT' : 'HADIR');
         saveState();
+        renderDashboard();
         syncWithGoogleSheets('single', { action: 'record_attendance', data: newRecord, wa: waPayload });
 
         card.className = isLate
@@ -2415,8 +2487,9 @@ function jsonResponse(obj) {
 
         let record;
         if (existingIdx !== -1) {
-          appState.attendance[existingIdx].jam_pulang = nowTime;
-          record = appState.attendance[existingIdx];
+          record = { ...appState.attendance[existingIdx], jam_pulang: nowTime, updated_at: getTimeWIB() };
+          appState.attendance.splice(existingIdx, 1);
+          appState.attendance.unshift(record);
         } else {
           record = {
             id: `ATT-${today}-${student.nisn}`,
@@ -2427,7 +2500,8 @@ function jsonResponse(obj) {
             jam_masuk: '-',
             jam_pulang: nowTime,
             status: 'HADIR',
-            wa_status: 'Terkirim'
+            wa_status: 'Terkirim',
+            updated_at: getTimeWIB()
           };
           appState.attendance.unshift(record);
         }
@@ -2435,6 +2509,7 @@ function jsonResponse(obj) {
         playBeep('success');
         const waPayload = triggerWhatsAppNotification(student, record, 'PULANG');
         saveState();
+        renderDashboard();
         syncWithGoogleSheets('single', { action: 'record_attendance', data: record, wa: waPayload });
 
         card.className = 'bg-blue-50 border-2 border-royal-600 rounded-2xl p-6 flex-1 flex flex-col items-center justify-center text-center';
@@ -2503,10 +2578,21 @@ function jsonResponse(obj) {
     // =========================================================================
     // 8. DASHBOARD RENDERING & CHARTS
     // =========================================================================
+    function normalizeDateStr(d) {
+      if (!d) return '';
+      const s = String(d).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+      }
+      return s;
+    }
+
     function renderDashboard() {
       const today = getTodayWIB();
       const totalStudents = appState.students.length;
-      const todayAtt = appState.attendance.filter(a => a.date === today);
+      const todayAtt = appState.attendance.filter(a => normalizeDateStr(a.date) === today);
 
       const hadirCount = todayAtt.filter(a => a.status === 'HADIR').length;
       const telatCount = todayAtt.filter(a => a.status === 'TERLAMBAT').length;
@@ -2535,18 +2621,33 @@ function jsonResponse(obj) {
       document.getElementById('today-date-badge').textContent = formatIndoDate(today);
 
       const tbody = document.getElementById('recent-scans-tbody');
-      const recent = todayAtt.slice(0, 10);
-      if (recent.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-400">Belum ada data absensi hari ini.</td></tr>`;
+      const sortedTodayAtt = [...todayAtt].sort((a, b) => {
+        const tA = String(a.updated_at || a.jam_pulang || a.jam_masuk || '');
+        const tB = String(b.updated_at || b.jam_pulang || b.jam_masuk || '');
+        return tB.localeCompare(tA);
+      });
+      const displayList = sortedTodayAtt.length > 0
+        ? sortedTodayAtt.slice(0, 10)
+        : [...appState.attendance].sort((a, b) => String(b.date + ' ' + (b.jam_pulang || b.jam_masuk || '')).localeCompare(String(a.date + ' ' + (a.jam_pulang || a.jam_masuk || '')))).slice(0, 10);
+
+      if (displayList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-400">Belum ada aktivitas scan absensi.</td></tr>`;
       } else {
-        tbody.innerHTML = recent.map(r => {
+        tbody.innerHTML = displayList.map(r => {
           const badge = getStatusBadge(r.status);
+          const isTodayRow = normalizeDateStr(r.date) === today;
+          const timeInfo = (r.jam_pulang && r.jam_pulang !== '-')
+            ? `Pulang: ${r.jam_pulang} <span class="block text-[10px] font-normal text-slate-500">Masuk: ${r.jam_masuk || '-'}</span>`
+            : `${r.jam_masuk || '-'}`;
           return `
             <tr class="hover:bg-slate-50">
-              <td class="py-2.5 px-4 font-bold text-navy-900 tabular-nums">${r.jam_masuk || r.jam_pulang || '-'}</td>
+              <td class="py-2.5 px-4 font-bold text-navy-900 tabular-nums">
+                ${timeInfo}
+                ${!isTodayRow ? `<div class="text-[10px] font-normal text-slate-400">${r.date}</div>` : ''}
+              </td>
               <td class="py-2.5 px-4">
                 <div class="font-bold text-slate-800">${r.nama}</div>
-                <div class="text-[11px] text-slate-500">Kelas ${r.kelas}</div>
+                <div class="text-[11px] text-slate-500">Kelas ${r.kelas} &bull; ${r.nisn}</div>
               </td>
               <td class="py-2.5 px-4">${badge}</td>
               <td class="py-2.5 px-4">
@@ -2715,7 +2816,8 @@ function jsonResponse(obj) {
       const clsFilter = document.getElementById('student-class-filter')?.value || '';
 
       const filtered = appState.students.filter(s => {
-        const matchQuery = s.nama.toLowerCase().includes(query) || s.nis.includes(query) || s.nisn.includes(query);
+        const qrCodeStr = String(s.kode_qr || '').toLowerCase();
+        const matchQuery = s.nama.toLowerCase().includes(query) || String(s.nis).includes(query) || String(s.nisn).includes(query) || qrCodeStr.includes(query);
         const matchClass = !clsFilter || s.kelas === clsFilter;
         return matchQuery && matchClass;
       });
@@ -2733,6 +2835,7 @@ function jsonResponse(obj) {
           <td class="py-3 px-4 font-mono font-bold text-navy-900">
             <div>${s.nisn}</div>
             <div class="text-[11px] text-slate-500 font-normal">NIS: ${s.nis}</div>
+            ${s.kode_qr && s.kode_qr !== s.nisn ? `<div class="text-[10px] text-gold-700 font-bold mt-0.5">QR/BC: ${s.kode_qr}</div>` : ''}
           </td>
           <td class="py-3 px-4 font-bold text-slate-800">${s.nama}</td>
           <td class="py-3 px-4 font-semibold">${s.jk}</td>
@@ -2921,7 +3024,7 @@ function jsonResponse(obj) {
       if (qrEl && typeof QRCode !== 'undefined') {
         qrEl.innerHTML = '';
         new QRCode(qrEl, {
-          text: String(student.nisn || student.nis || student.id).trim(),
+          text: String(student.kode_qr || student.nisn || student.nis || student.id).trim(),
           width: qrSize,
           height: qrSize,
           colorDark: '#0F294A',
@@ -2944,7 +3047,7 @@ function jsonResponse(obj) {
       }
       if (bcSvgId && typeof JsBarcode !== 'undefined') {
         try {
-          JsBarcode('#' + bcSvgId, String(student.nisn || student.nis).trim(), {
+          JsBarcode('#' + bcSvgId, String(student.kode_qr || student.nisn || student.nis).trim(), {
             format: 'CODE128',
             width: 1.4,
             height: 28,
@@ -3705,6 +3808,128 @@ function jsonResponse(obj) {
       }
     }
 
+    // =========================================================================
+    // 15. IMPORT KODE QR / BARCODE (EXCEL, PASTE, & GAMBAR KARTU)
+    // =========================================================================
+    function openImportQrModal() {
+      const sel = document.getElementById('import-qr-student-select');
+      if (sel) {
+        sel.innerHTML = appState.students.map(s =>
+          `<option value="${s.id}">${s.nama} (${s.kelas}) - NISN: ${s.nisn}</option>`
+        ).join('');
+      }
+      document.getElementById('qr-bulk-paste-input').value = '';
+      const modal = document.getElementById('modal-import-qr');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      lucide.createIcons();
+    }
+
+    function downloadQrImportTemplate() {
+      const templateRows = appState.students.map(s => ({
+        NISN: s.nisn,
+        NAMA: s.nama,
+        KELAS: s.kelas,
+        KODE_QR: s.kode_qr || s.nisn
+      }));
+      const ws = XLSX.utils.json_to_sheet(templateRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Template_Kode_QR');
+      XLSX.writeFile(wb, 'Template_Import_Kode_QR_SMPN2_Ketapang.xlsx');
+      showToast('Template Excel Kode QR / Barcode berhasil diunduh.', 'success');
+    }
+
+    function importQrMappingExcel(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const wb = XLSX.read(evt.target.result, { type: 'binary' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws);
+          let updated = 0;
+          rows.forEach(r => {
+            const nisnVal = String(r.NISN || r.nisn || r.NIS || r.nis || '').trim();
+            const qrVal = String(r.KODE_QR || r.kode_qr || r.BARCODE || r.barcode || r.Kode_QR || '').trim();
+            if (nisnVal && qrVal) {
+              const stu = appState.students.find(s => String(s.nisn).trim() === nisnVal || String(s.nis).trim() === nisnVal);
+              if (stu) {
+                stu.kode_qr = qrVal;
+                updated++;
+              }
+            }
+          });
+          saveState();
+          syncWithGoogleSheets('push');
+          renderStudentsTable();
+          populateAllDropdowns();
+          closeModal('modal-import-qr');
+          showToast(`Berhasil memperbarui ${updated} Kode QR / Barcode siswa!`, 'success');
+        } catch (err) {
+          showToast('Gagal membaca file Excel Kode QR.', 'error');
+        }
+      };
+      reader.readAsBinaryString(file);
+      e.target.value = '';
+    }
+
+    function processQrBulkPaste() {
+      const raw = document.getElementById('qr-bulk-paste-input').value.trim();
+      if (!raw) {
+        showToast('Masukkan daftar NISN dan Kode QR terlebih dahulu.', 'warning');
+        return;
+      }
+      const lines = raw.split(/\r?\n/);
+      let updated = 0;
+      lines.forEach(line => {
+        const parts = line.split(/[,;\t]+/).map(p => p.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          const [nisnVal, qrVal] = parts;
+          const stu = appState.students.find(s => String(s.nisn).trim() === nisnVal || String(s.nis).trim() === nisnVal);
+          if (stu) {
+            stu.kode_qr = qrVal;
+            updated++;
+          }
+        }
+      });
+      saveState();
+      syncWithGoogleSheets('push');
+      renderStudentsTable();
+      populateAllDropdowns();
+      closeModal('modal-import-qr');
+      showToast(`${updated} Kode QR / Barcode berhasil ditautkan ke siswa!`, 'success');
+    }
+
+    async function extractQrImageForStudent(e) {
+      const file = e.target.files[0];
+      const stuId = document.getElementById('import-qr-student-select').value;
+      if (!file || !stuId) return;
+      try {
+        const formats = getSupportedBarcodeFormats();
+        const scanner = formats
+          ? new Html5Qrcode('qr-import-temp', { formatsToSupport: formats, verbose: false })
+          : new Html5Qrcode('qr-import-temp');
+        const decodedText = await scanner.scanFile(file, true);
+        scanner.clear();
+        const cleanCode = String(decodedText || '').trim();
+        const stu = appState.students.find(s => s.id === stuId);
+        if (stu && cleanCode) {
+          stu.kode_qr = cleanCode;
+          saveState();
+          syncWithGoogleSheets('push');
+          renderStudentsTable();
+          populateAllDropdowns();
+          closeModal('modal-import-qr');
+          showToast(`Kode "${cleanCode}" berhasil ditautkan ke ${stu.nama}!`, 'success');
+        }
+      } catch (err) {
+        showToast('QR Code / Barcode pada gambar kartu tidak terbaca. Gunakan foto yang lebih jelas.', 'error');
+      } finally {
+        e.target.value = '';
+      }
+    }
+
     function populateAllDropdowns() {
       const classOptions = appState.classes.map(c => `<option value="${c.name}">Kelas ${c.name}</option>`).join('');
       const stuClassFilter = document.getElementById('student-class-filter');
@@ -3716,7 +3941,7 @@ function jsonResponse(obj) {
       const repClass = document.getElementById('rep-class');
       if (repClass) repClass.innerHTML = `<option value="">Semua Kelas</option>${classOptions}`;
 
-      const studentOptions = appState.students.map(s => `<option value="${s.nisn}">${s.nama} (${s.kelas}) - ${s.nisn}</option>`).join('');
+      const studentOptions = appState.students.map(s => `<option value="${s.kode_qr || s.nisn}">${s.nama} (${s.kelas}) - ${s.kode_qr || s.nisn}</option>`).join('');
       const manualScanSel = document.getElementById('manual-student-select');
       if (manualScanSel) manualScanSel.innerHTML = `<option value="">-- Pilih Nama Siswa / Kelas --</option>${studentOptions}`;
 
