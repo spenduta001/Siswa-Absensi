@@ -136,8 +136,8 @@
     <!-- Top Header -->
     <div class="max-w-5xl w-full mx-auto flex flex-wrap items-center justify-between gap-4 bg-white rounded-xl p-4 shadow-md border-b-4 border-gold-600">
       <div class="flex items-center gap-3">
-        <!-- SVG Logo Sekolah -->
-        <div class="w-12 h-12 rounded-xl bg-navy-900 flex items-center justify-center text-gold-500 shrink-0 shadow">
+        <!-- Logo Sekolah Dinamis -->
+        <div class="school-logo-box w-12 h-12 rounded-xl bg-navy-900 flex items-center justify-center text-gold-500 shrink-0 shadow overflow-hidden">
           <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7l10 5 10-5-10-5z"/>
             <path d="M2 17l10 5 10-5"/>
@@ -277,7 +277,7 @@
         <!-- Brand Header -->
         <div class="p-4 bg-navy-800 border-b border-navy-700 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-gold-600 text-white flex items-center justify-center font-extrabold shrink-0">
+            <div class="school-logo-sidebar w-10 h-10 rounded-lg bg-gold-600 text-white flex items-center justify-center font-extrabold shrink-0 overflow-hidden">
               <i data-lucide="graduation-cap" class="w-6 h-6"></i>
             </div>
             <div>
@@ -1041,8 +1041,30 @@
                 <input type="text" id="set-kepsek-nip" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
               </div>
 
+              <!-- Input Logo Sekolah -->
+              <div class="pt-3 border-t border-slate-200 space-y-2">
+                <label class="block text-xs font-bold text-slate-700">Logo Sekolah (Halaman Login, Sidebar, Kartu & Laporan)</label>
+                <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div id="settings-logo-preview" class="w-14 h-14 rounded-xl bg-navy-900 text-gold-500 flex items-center justify-center shrink-0 overflow-hidden border border-slate-300 shadow-sm">
+                    <i data-lucide="graduation-cap" class="w-7 h-7"></i>
+                  </div>
+                  <div class="flex-1 space-y-1.5">
+                    <div class="flex flex-wrap gap-1.5">
+                      <label class="px-3 py-1.5 rounded-lg bg-royal-600 hover:bg-royal-700 text-white font-bold text-[11px] cursor-pointer inline-flex items-center gap-1 shadow-sm">
+                        <i data-lucide="upload" class="w-3.5 h-3.5"></i> Pilih Logo (PNG/JPG/SVG)
+                        <input type="file" id="set-school-logo-input" accept="image/*" onchange="handleSchoolLogoUpload(event)" class="hidden">
+                      </label>
+                      <button type="button" onclick="resetSchoolLogo()" class="px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-red-100 text-slate-700 hover:text-red-700 font-bold text-[11px] transition">
+                        Reset Default
+                      </button>
+                    </div>
+                    <p class="text-[10px] text-slate-500">Otomatis dikompresi agar ringan & tersimpan permanen.</p>
+                  </div>
+                </div>
+              </div>
+
               <button onclick="saveSchoolSettings()" class="w-full bg-navy-900 hover:bg-royal-600 text-white font-bold py-2.5 rounded-xl text-xs shadow">
-                Simpan Jam Sekolah
+                Simpan Jam & Logo Sekolah
               </button>
             </div>
           </div>
@@ -1456,7 +1478,20 @@ function sheetToObjects(sheet) {
   const headers = data[0];
   return data.slice(1).map(row => {
     const obj = {};
-    headers.forEach((h, i) => obj[h] = String(row[i]));
+    headers.forEach((h, i) => {
+      const val = row[i];
+      if (val instanceof Date) {
+        if (h === 'jam_masuk' || h === 'jam_pulang') {
+          obj[h] = Utilities.formatDate(val, 'Asia/Jakarta', 'HH:mm');
+        } else if (h === 'date') {
+          obj[h] = Utilities.formatDate(val, 'Asia/Jakarta', 'yyyy-MM-dd');
+        } else {
+          obj[h] = Utilities.formatDate(val, 'Asia/Jakarta', 'yyyy-MM-dd HH:mm');
+        }
+      } else {
+        obj[h] = String(val === null || val === undefined ? '' : val);
+      }
+    });
     return obj;
   });
 }
@@ -1466,11 +1501,15 @@ function upsertRow(sheet, keyCol, rowValues) {
   const keyIdx = data[0].indexOf(keyCol);
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][keyIdx]) === String(rowValues[keyIdx])) {
-      sheet.getRange(i + 1, 1, 1, rowValues.length).setValues([rowValues]);
+      const rng = sheet.getRange(i + 1, 1, 1, rowValues.length);
+      rng.setNumberFormat('@');
+      rng.setValues([rowValues]);
       return;
     }
   }
   sheet.appendRow(rowValues);
+  const lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow, 1, 1, rowValues.length).setNumberFormat('@');
 }
 
 function overwriteSheet(sheet, headers, items) {
@@ -1945,6 +1984,14 @@ function jsonResponse(obj) {
         if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
           parsed.users = JSON.parse(JSON.stringify(DEFAULT_USERS));
         }
+        if (Array.isArray(parsed.attendance)) {
+          parsed.attendance = parsed.attendance.map(a => ({
+            ...a,
+            date: normalizeDateStr(a.date),
+            jam_masuk: formatShortTimeStr(a.jam_masuk),
+            jam_pulang: a.jam_pulang ? formatShortTimeStr(a.jam_pulang) : ''
+          }));
+        }
         return parsed;
       } catch (e) {
         return createInitialState();
@@ -2187,8 +2234,14 @@ function jsonResponse(obj) {
             if (Array.isArray(data.attendance) && data.attendance.length > 0) {
               appState.attendance = data.attendance.map(a => ({
                 ...a,
-                date: normalizeDateStr(a.date)
+                date: normalizeDateStr(a.date),
+                jam_masuk: formatShortTimeStr(a.jam_masuk),
+                jam_pulang: a.jam_pulang ? formatShortTimeStr(a.jam_pulang) : ''
               }));
+            }
+            if (data.settings && data.settings.schoolLogo) {
+              appState.settings.schoolLogo = data.settings.schoolLogo;
+              applySchoolLogoUI();
             }
             if (Array.isArray(data.leaves) && data.leaves.length > 0) appState.leaves = data.leaves;
             if (Array.isArray(data.waLogs) && data.waLogs.length > 0) appState.waLogs = data.waLogs;
@@ -2421,7 +2474,7 @@ function jsonResponse(obj) {
             <h4 class="text-xl font-extrabold text-navy-900">${student.nama}</h4>
             <p class="text-sm font-bold text-slate-600">Kelas ${student.kelas} &bull; NISN ${student.nisn}</p>
             <p class="text-xs text-amber-800 font-semibold mt-2 bg-amber-100 px-3 py-1.5 rounded-lg">
-              Tercatat masuk pukul ${rec.jam_masuk} WIB (${rec.status})
+              Tercatat masuk pukul ${formatShortTimeStr(rec.jam_masuk)} WIB (${rec.status})
             </p>
           `;
           lucide.createIcons();
@@ -2536,8 +2589,8 @@ function jsonResponse(obj) {
         .replace(/{nama_siswa}/g, student.nama)
         .replace(/{kelas}/g, student.kelas)
         .replace(/{tanggal}/g, formatIndoDate(record.date))
-        .replace(/{jam_masuk}/g, record.jam_masuk || '-')
-        .replace(/{jam_pulang}/g, record.jam_pulang || '-')
+        .replace(/{jam_masuk}/g, formatShortTimeStr(record.jam_masuk) || '-')
+        .replace(/{jam_pulang}/g, formatShortTimeStr(record.jam_pulang) || '-')
         .replace(/{status}/g, record.status || 'HADIR');
     }
 
@@ -2589,6 +2642,32 @@ function jsonResponse(obj) {
       return s;
     }
 
+    function formatShortTimeStr(t) {
+      if (!t || t === '-') return t || '-';
+      const s = String(t).trim();
+      if (!s) return '-';
+      // Sudah format HH:mm atau HH:mm:ss
+      const hmMatch = s.match(/^(\d{1,2})[:.](\d{2})(?:[:.]\d{2})?$/);
+      if (hmMatch) {
+        return `${hmMatch[1].padStart(2, '0')}:${hmMatch[2]}`;
+      }
+      // String panjang bawaan Google Sheets / ISO Date (misal: Sat Dec 30 1899 07:05:00 GMT+0700...)
+      if (s.includes('GMT') || s.includes('1899') || s.includes('T') || s.length > 8) {
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toLocaleTimeString('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit'
+          }).replace(/\./g, ':');
+        }
+        const embeddedTime = s.match(/(\d{2}):(\d{2}):\d{2}/);
+        if (embeddedTime) return `${embeddedTime[1]}:${embeddedTime[2]}`;
+      }
+      return s;
+    }
+
     function renderDashboard() {
       const today = getTodayWIB();
       const totalStudents = appState.students.length;
@@ -2636,9 +2715,11 @@ function jsonResponse(obj) {
         tbody.innerHTML = displayList.map(r => {
           const badge = getStatusBadge(r.status);
           const isTodayRow = normalizeDateStr(r.date) === today;
-          const timeInfo = (r.jam_pulang && r.jam_pulang !== '-')
-            ? `Pulang: ${r.jam_pulang} <span class="block text-[10px] font-normal text-slate-500">Masuk: ${r.jam_masuk || '-'}</span>`
-            : `${r.jam_masuk || '-'}`;
+          const jMasuk = formatShortTimeStr(r.jam_masuk);
+          const jPulang = formatShortTimeStr(r.jam_pulang);
+          const timeInfo = (jPulang && jPulang !== '-')
+            ? `Pulang: ${jPulang} <span class="block text-[10px] font-normal text-slate-500">Masuk: ${jMasuk}</span>`
+            : `${jMasuk}`;
           return `
             <tr class="hover:bg-slate-50">
               <td class="py-2.5 px-4 font-bold text-navy-900 tabular-nums">
@@ -2984,9 +3065,12 @@ function jsonResponse(obj) {
     }
 
     function buildIDCardHTML(student, qrElementId, barcodeElementId = null) {
+      const logoHtml = appState.settings.schoolLogo
+        ? `<img src="${appState.settings.schoolLogo}" alt="Logo" style="width:32px;height:32px;object-fit:contain;background:#FFFFFF;border-radius:6px;padding:2px;" />`
+        : `<div class="w-8 h-8 rounded-lg bg-gold-600 flex items-center justify-center font-extrabold text-xs">SMP2</div>`;
       return `
         <div class="bg-navy-900 text-white p-3 flex items-center gap-2.5 border-b-4 border-gold-500">
-          <div class="w-8 h-8 rounded-lg bg-gold-600 flex items-center justify-center font-extrabold text-xs">SMP2</div>
+          ${logoHtml}
           <div>
             <div class="text-xs font-extrabold leading-tight">UPTD SMPN 2 KETAPANG</div>
             <div class="text-[10px] text-gold-400 font-semibold">KARTU PELAJAR & ABSENSI DIGITAL</div>
@@ -3312,7 +3396,7 @@ function jsonResponse(obj) {
       discList.innerHTML = hadirRecords.slice(0, 5).map((r, i) => `
         <div class="flex items-center justify-between p-2 rounded-lg bg-emerald-50 border border-emerald-200">
           <span><strong>#${i + 1} ${r.nama}</strong> (${r.kelas})</span>
-          <span class="font-extrabold text-emerald-700">${r.jam_masuk} WIB</span>
+          <span class="font-extrabold text-emerald-700">${formatShortTimeStr(r.jam_masuk)} WIB</span>
         </div>
       `).join('') || '<div class="text-slate-400">Belum ada data kehadiran.</div>';
 
@@ -3321,7 +3405,7 @@ function jsonResponse(obj) {
       lateList.innerHTML = lateRecords.slice(0, 5).map((r) => `
         <div class="flex items-center justify-between p-2 rounded-lg bg-amber-50 border border-amber-200">
           <span><strong>${r.nama}</strong> (${r.kelas})</span>
-          <span class="font-extrabold text-amber-700">${r.date} &bull; ${r.jam_masuk} WIB</span>
+          <span class="font-extrabold text-amber-700">${normalizeDateStr(r.date)} &bull; ${formatShortTimeStr(r.jam_masuk)} WIB</span>
         </div>
       `).join('') || '<div class="text-slate-400">Tidak ada catatan keterlambatan.</div>';
 
@@ -3357,8 +3441,8 @@ function jsonResponse(obj) {
           <td class="py-2.5 px-4 font-mono">${r.nisn}</td>
           <td class="py-2.5 px-4 font-bold text-navy-900">${r.nama}</td>
           <td class="py-2.5 px-4">${r.kelas}</td>
-          <td class="py-2.5 px-4 font-bold">${r.jam_masuk || '-'}</td>
-          <td class="py-2.5 px-4 font-bold">${r.jam_pulang || '-'}</td>
+          <td class="py-2.5 px-4 font-bold tabular-nums">${formatShortTimeStr(r.jam_masuk)}</td>
+          <td class="py-2.5 px-4 font-bold tabular-nums">${formatShortTimeStr(r.jam_pulang)}</td>
           <td class="py-2.5 px-4">${getStatusBadge(r.status)}</td>
         </tr>
       `).join('');
@@ -3379,10 +3463,13 @@ function jsonResponse(obj) {
       printArea.classList.remove('hidden');
       printArea.innerHTML = `
         <div style="padding: 24px; font-family: Inter, sans-serif; color: #000;">
-          <div style="text-align: center; border-bottom: 3px double #000; padding-bottom: 12px; margin-bottom: 20px;">
-            <div style="font-size: 14px; font-weight: 700;">PEMERINTAH KABUPATEN SAMPANG &bull; DINAS PENDIDIKAN</div>
-            <div style="font-size: 18px; font-weight: 800; margin: 2px 0;">UPTD SMP NEGERI 2 KETAPANG</div>
-            <div style="font-size: 12px;">Laporan Rekapitulasi Kehadiran Siswa &bull; Tahun Ajaran ${appState.settings.tahunAjaran}</div>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 14px; border-bottom: 3px double #000; padding-bottom: 12px; margin-bottom: 20px;">
+            ${appState.settings.schoolLogo ? `<img src="${appState.settings.schoolLogo}" style="width: 56px; height: 56px; object-fit: contain;" />` : ''}
+            <div style="text-align: center;">
+              <div style="font-size: 14px; font-weight: 700;">PEMERINTAH KABUPATEN SAMPANG &bull; DINAS PENDIDIKAN</div>
+              <div style="font-size: 18px; font-weight: 800; margin: 2px 0;">UPTD SMP NEGERI 2 KETAPANG</div>
+              <div style="font-size: 12px;">Laporan Rekapitulasi Kehadiran Siswa &bull; Tahun Ajaran ${appState.settings.tahunAjaran}</div>
+            </div>
           </div>
           <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
             <thead>
@@ -3405,8 +3492,8 @@ function jsonResponse(obj) {
                   <td style="border: 1px solid #333; padding: 5px;">${r.nisn}</td>
                   <td style="border: 1px solid #333; padding: 5px; font-weight:600;">${r.nama}</td>
                   <td style="border: 1px solid #333; padding: 5px; text-align:center;">${r.kelas}</td>
-                  <td style="border: 1px solid #333; padding: 5px; text-align:center;">${r.jam_masuk || '-'}</td>
-                  <td style="border: 1px solid #333; padding: 5px; text-align:center;">${r.jam_pulang || '-'}</td>
+                  <td style="border: 1px solid #333; padding: 5px; text-align:center;">${formatShortTimeStr(r.jam_masuk)}</td>
+                  <td style="border: 1px solid #333; padding: 5px; text-align:center;">${formatShortTimeStr(r.jam_pulang)}</td>
                   <td style="border: 1px solid #333; padding: 5px; text-align:center; font-weight:700;">${r.status}</td>
                 </tr>
               `).join('')}
@@ -3688,6 +3775,86 @@ function jsonResponse(obj) {
       showToast(`Akun "${username}" berhasil dihapus.`, 'info');
     }
 
+    function applySchoolLogoUI() {
+      const logoData = appState.settings.schoolLogo || '';
+      document.querySelectorAll('.school-logo-box').forEach(box => {
+        if (logoData) {
+          box.className = 'school-logo-box w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow overflow-hidden p-1';
+          box.innerHTML = `<img src="${logoData}" alt="Logo Sekolah" class="w-full h-full object-contain" />`;
+        } else {
+          box.className = 'school-logo-box w-12 h-12 rounded-xl bg-navy-900 flex items-center justify-center text-gold-500 shrink-0 shadow overflow-hidden';
+          box.innerHTML = `<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`;
+        }
+      });
+
+      document.querySelectorAll('.school-logo-sidebar').forEach(box => {
+        if (logoData) {
+          box.className = 'school-logo-sidebar w-10 h-10 rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden p-1 shadow';
+          box.innerHTML = `<img src="${logoData}" alt="Logo" class="w-full h-full object-contain" />`;
+        } else {
+          box.className = 'school-logo-sidebar w-10 h-10 rounded-lg bg-gold-600 text-white flex items-center justify-center font-extrabold shrink-0 overflow-hidden';
+          box.innerHTML = `<i data-lucide="graduation-cap" class="w-6 h-6"></i>`;
+        }
+      });
+
+      const previewEl = document.getElementById('settings-logo-preview');
+      if (previewEl) {
+        if (logoData) {
+          previewEl.className = 'w-14 h-14 rounded-xl bg-white flex items-center justify-center shrink-0 overflow-hidden border border-slate-300 shadow-sm p-1';
+          previewEl.innerHTML = `<img src="${logoData}" alt="Preview Logo" class="w-full h-full object-contain" />`;
+        } else {
+          previewEl.className = 'w-14 h-14 rounded-xl bg-navy-900 text-gold-500 flex items-center justify-center shrink-0 overflow-hidden border border-slate-300 shadow-sm';
+          previewEl.innerHTML = `<i data-lucide="graduation-cap" class="w-7 h-7"></i>`;
+        }
+      }
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function handleSchoolLogoUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxDim = 220;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressedDataUrl = canvas.toDataURL('image/png', 0.9);
+          appState.settings.schoolLogo = compressedDataUrl;
+          saveState();
+          applySchoolLogoUI();
+          syncWithGoogleSheets('push');
+          showToast('Logo sekolah berhasil diperbarui & diterapkan ke seluruh tampilan!', 'success');
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    }
+
+    function resetSchoolLogo() {
+      appState.settings.schoolLogo = '';
+      saveState();
+      applySchoolLogoUI();
+      syncWithGoogleSheets('push');
+      showToast('Logo sekolah dikembalikan ke ikon default.', 'info');
+    }
+
     function loadSettingsInputs() {
       document.getElementById('set-gsheet-url').value = appState.settings.gsheetUrl;
       document.getElementById('set-jam-masuk').value = appState.settings.jamMasuk;
@@ -3701,6 +3868,7 @@ function jsonResponse(obj) {
       document.getElementById('scan-info-masuk').textContent = `${appState.settings.jamMasuk} WIB`;
       document.getElementById('scan-info-telat').textContent = `${appState.settings.batasTelat} WIB`;
       document.getElementById('scan-info-pulang').textContent = `${appState.settings.jamPulang} WIB`;
+      applySchoolLogoUI();
     }
 
     function saveSchoolSettings() {
@@ -3964,6 +4132,7 @@ function jsonResponse(obj) {
     window.onload = function() {
       updateClockWIB();
       setInterval(updateClockWIB, 1000);
+      applySchoolLogoUI();
       renderQuickLoginButtons();
       populateAllDropdowns();
       updateSyncStatusUI(navigator.onLine ? 'online' : 'offline');
